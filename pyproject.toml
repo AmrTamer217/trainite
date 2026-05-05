@@ -11,3 +11,5 @@ dependencies = [
     "PyYAML",
     "tensorboard",
 ]
+[project.scripts]
+trainite = "trainite.cli:main"

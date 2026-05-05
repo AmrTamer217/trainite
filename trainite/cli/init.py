@@ -8,6 +8,7 @@ from trainite.config import default_config, dump_config
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = PACKAGE_ROOT.parent
+TEMPLATE_ROOT = PACKAGE_ROOT / "templates" / "project"
 
 
 def _replace_many(text: str, replacements: Iterable[tuple[str, str]]) -> str:
@@ -93,7 +94,7 @@ def init_project(args: argparse.Namespace) -> None:
 			],
 		),
 		"main.py": _render_template(
-			PROJECT_ROOT / "main.py",
+			TEMPLATE_ROOT / "main.py",
 			[
 				("from trainite.config import default_config, load_config", "from config import default_config, load_config"),
 				("from trainite.trainers import PreTrainer", "from trainer import Trainer"),
