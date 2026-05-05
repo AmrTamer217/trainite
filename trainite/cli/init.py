@@ -6,7 +6,6 @@ from typing import Iterable, Sequence
 
 from trainite.config import default_config, dump_config
 
-
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = PACKAGE_ROOT.parent
 

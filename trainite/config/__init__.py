@@ -1,4 +1,13 @@
-from trainite.config.core import Config, DatasetConfig, ModelConfig, OutputConfig, TrainerConfig, default_config, dump_config, load_config
+from trainite.config.core import (
+    Config,
+    DatasetConfig,
+    ModelConfig,
+    OutputConfig,
+    TrainerConfig,
+    default_config,
+    dump_config,
+    load_config,
+)
 
 __all__ = [
     "Config",
