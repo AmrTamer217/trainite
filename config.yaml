@@ -1,0 +1,20 @@
+model:
+  vocab_size: 1
+  hidden_size: 2
+dataset:
+  train_size: 100
+  val_size: 25
+  batch_size: 16
+  seq_len: 16
+  num_workers: 0
+  seed: 7
+trainer:
+  epochs: 1
+  device: cpu
+  learning_rate: 0.001
+  log_every_steps: 10
+  grad_clip_norm: null
+output:
+  root: output
+  run_name: dummy-pretrain
+seed: 42
