@@ -1,3 +1,6 @@
-from trainite.models.dummy import DummyLanguageModel, build_dummy_model
+from trainite.models.transformer import TransformerModel, build_transformer_model
 
-__all__ = ["DummyLanguageModel", "build_dummy_model"]
+__all__ = [
+    "TransformerModel",
+    "build_transformer_model",
+]

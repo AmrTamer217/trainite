@@ -1,3 +1,8 @@
-from trainite.datasets.dummy import SyntheticPretrainingDataset, build_dummy_dataloaders
+from trainite.datasets.string_reverse import (
+    StringReverseDataset, build_string_reverse_dataloaders
+)
 
-__all__ = ["SyntheticPretrainingDataset", "build_dummy_dataloaders"]
+__all__ = [
+    "StringReverseDataset",
+    "build_string_reverse_dataloaders",
+]

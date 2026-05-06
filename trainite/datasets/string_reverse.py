@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import torch
 from torch.utils.data import DataLoader, Dataset
 
-from trainite.config import Config
+from trainite.config.dataset import StringReverseDatasetConfig
 
 
-class SyntheticPretrainingDataset(Dataset):
+class StringReverseDataset(Dataset):
     def __init__(self, size: int, seq_len: int, vocab_size: int, seed: int) -> None:
         generator = torch.Generator().manual_seed(seed)
         self.inputs = torch.randint(
@@ -17,7 +15,7 @@ class SyntheticPretrainingDataset(Dataset):
             size=(size, seq_len),
             generator=generator,
         )
-        self.labels = self.inputs.clone()
+        self.labels = torch.flip(self.inputs, dims=[1])
 
     def __len__(self) -> int:
         return self.inputs.size(0)
@@ -29,29 +27,31 @@ class SyntheticPretrainingDataset(Dataset):
         }
 
 
-def build_dummy_dataloaders(config: Config) -> tuple[DataLoader, DataLoader]:
-    train_dataset = SyntheticPretrainingDataset(
-        size=config.dataset.train_size,
-        seq_len=config.dataset.seq_len,
-        vocab_size=config.model.vocab_size,
-        seed=config.dataset.seed,
+def build_string_reverse_dataloaders(
+    config: StringReverseDatasetConfig,
+) -> tuple[DataLoader, DataLoader]:
+    train_dataset = StringReverseDataset(
+        size=config.train_size,
+        seq_len=config.seq_len,
+        vocab_size=config.vocab_size,
+        seed=config.seed,
     )
-    val_dataset = SyntheticPretrainingDataset(
-        size=config.dataset.val_size,
-        seq_len=config.dataset.seq_len,
-        vocab_size=config.model.vocab_size,
-        seed=config.dataset.seed + 1,
+    val_dataset = StringReverseDataset(
+        size=config.val_size,
+        seq_len=config.seq_len,
+        vocab_size=config.vocab_size,
+        seed=config.seed + 1,
     )
     train_loader = DataLoader(
         train_dataset,
-        batch_size=config.dataset.batch_size,
+        batch_size=config.batch_size,
         shuffle=True,
-        num_workers=config.dataset.num_workers,
+        num_workers=config.num_workers,
     )
     val_loader = DataLoader(
         val_dataset,
-        batch_size=config.dataset.batch_size,
+        batch_size=config.batch_size,
         shuffle=False,
-        num_workers=config.dataset.num_workers,
+        num_workers=config.num_workers,
     )
     return train_loader, val_loader
