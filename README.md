@@ -1,89 +1,108 @@
-# trainite — prototype
+# Trainite 
 
-trainite is a small prototype CLI and library for generating minimal, hackable training projects.
+**Trainite** is a cookiecutter-style toolbox for training language models with PyTorch-Ignite. It is designed for researchers who want to go from zero to a running training loop in minutes without fighting a framework's abstractions.
 
-Key ideas:
+---
+## Design Overview
+### 1. The Registry System (`ComponentSpec`)
+Trainite uses a centralized registry (`trainite/config/registry.py`) to manage its built-in components. Each component (Model, Dataset, Trainer) is defined by a `ComponentSpec`:
 
-- Lightweight CLI: `trainite init` generates a starter project from package templates.
-- Semi-interactive generator: defaults are pre-filled; missing values are prompted; use `--yes` to accept defaults non-interactively.
-- Standalone config: generated `config.py` is fully inlined and self-contained (Pydantic classes + YAML helpers) so generated projects are easy to edit.
-- Registry-driven components: models, datasets, and trainers are selected from a registry inside the package so swapping implementations is simple.
+- **`implementation_path`**: Path to the source file used as a template.
+- **`config_cls`**: The Pydantic class defining the component's hyperparameters.
+- **`builder_symbol`**: The name of the factory function (e.g., `build_model`) that instantiates the component.
 
-This repository is a prototype — the goal is to make a minimal, reproducible starting point you can hack on.
+This registry allows the CLI to dynamically discover and compose any combination of components during initialization.
 
-**Quick features**
+### 2. Dynamic Config Generation
+One of Trainite's core features is generating a **local, self-contained `config.py`** for each project. It achieves this using Python's `inspect` module:
 
-- `trainite init <path>` — scaffold a new project. Accepts flags to select model/dataset/trainer and to override defaults.
-- Generated files: `config.py`, `model.py`, `dataset.py`, `trainer.py`, `main.py` (all intended to be simple and editable).
-- Registry: add new components by updating the package registry under `trainite/config/registry.py`.
+- When `trainite init` runs, it looks up the `config_cls` for the selected model, dataset, and trainer.
+- It uses **`inspect.getsource(cls)`** to extract the literal source code of these Pydantic models.
+- It then concatenates these definitions into a single `config.py` file and wraps them in a master `ProjectConfig` class.
 
-**Recommended workflow**
+**Why?** This ensures the generated project has a fully typed, IDE-friendly configuration system without needing to import the `trainite` library at runtime.
 
-1. Install the package in a dev environment:
+### 3. Template Adaptation Logic
+The CLI doesn't just copy files; it **refactors** them on the fly. In `trainite/cli/init.py`, the `_build_templates` function performs targeted string replacements:
 
-```bash
-pip install -e .
+- **Rewiring Imports**: Changes library-style imports (e.g., `from trainite.config import ...`) to local imports (`from config import ...`).
+- **Symbol Normalization**: It renames specific builder functions to generic names like `build_model` or `build_dataloaders` so that `main.py` can remain generic across different architectures.
+
+### 4. Configuration Composition
+The generated `ProjectConfig` uses Pydantic's `Field(default_factory=...)` to compose the sub-configs:
+
+```python
+class ProjectConfig(BaseModel):
+    model: TransformerModelConfig = Field(default_factory=TransformerModelConfig)
+    dataset: StringReverseDatasetConfig = Field(default_factory=StringReverseDatasetConfig)
+    # ...
+```
+This composition allows for a flat YAML structure that is both easy to read and strictly validated.
+
+---
+
+## Directory Structure
+
+### Core Library (Prototype)
+```text
+trainite/
+├── cli/            # CLI implementation & template adaptation logic
+├── config/         # Pydantic schemas & the Component Registry
+├── datasets/       # Implementation templates for datasets
+├── models/         # Implementation templates for models
+└── trainers/       # Base training logic (Ignite Engines)
 ```
 
-2. Create a new project quickly (non-interactive):
-
-```bash
-trainite init ./my-project --yes
+### Generated Project Structure
+```text
+<project>/
+├── config.yaml     # End-user hyperparameter file
+├── config.py       # Generated Pydantic models (source-injected)
+├── model.py        # Adapted model architecture
+├── dataset.py      # Adapted dataset/dataloader logic
+├── trainer.py      # Adapted Ignite training loop
+└── main.py         # Static entrypoint
 ```
 
-Or run the module directly (no installation):
+---
+
+## Installation
 
 ```bash
-python -m trainite.cli init ./my-project --yes
+git clone <repo-url>
+cd trainite_prototype
+uv sync
 ```
 
-3. Inspect and edit the generated `config.py` — it contains Pydantic v2 models and YAML helpers and is intentionally standalone and hackable.
+---
 
-4. Run the generated `main.py` from the generated project (it expects the generated `config.py` to be next to it):
+## Usage
 
+### 1. Initialize a Project
 ```bash
-python main.py
+uv run trainite init my-experiment --model transformer --dataset string-reverse
 ```
 
-**CLI options (short)**
-
-- `--model` choose a model (by name in the registry).
-- `--dataset` choose a dataset (by name in the registry).
-- `--trainer` choose a trainer (by name in the registry).
-- `--run-name` set the default output run name.
-- `--force` overwrite an existing output directory.
-- `--yes` accept defaults and skip prompts.
-
-See the CLI help for full details:
-
+### 2. Run Training
 ```bash
-trainite init --help
+cd my-experiment
+python main.py config.yaml
 ```
 
-**Generated project layout**
+---
 
-The generator emits a compact project containing:
+## Extending Trainite
 
-- `config.py` — standalone ProjectConfig (inlined Pydantic classes) and YAML helpers.
-- `model.py` — a small model builder and example model.
-- `dataset.py` — an example dataset and dataloader builder.
-- `trainer.py` — a tiny trainer that wires model, optimizer, and dataloaders.
-- `main.py` — minimal entrypoint that loads `config.py`, builds components, and runs training.
+Since everything is a local file, extending is easy:
+- **Custom Model**: Modify `model.py`.
+- **Custom Data**: Modify `dataset.py`.
+- **Custom Metrics**: Attach new Ignite metrics in `trainer.py`'s `_attach_metrics`.
+- **Custom Handlers**: Use Ignite's event system in `trainer.py`.
 
-These files are intentionally simple and editable — they are the recommended place to experiment.
+---
 
-**Extending the prototype**
+## Prototype specific files
 
-- To add new components (models/datasets/trainers), add the implementation and its Pydantic config in `trainite/config`, then register the new entry in `trainite/config/registry.py`.
-- The generator uses the registry to pick implementations and inlines the selected config classes into generated `config.py`.
-
-**Notes & next steps**
-
-- `config.py` is generated to be self-contained; the other generated files aim to be similarly straightforward but may still reference small package utilities — feel free to make them fully standalone in your generated template if you prefer.
-- This prototype will evolve: add more model/dataset templates, richer trainer examples (RLTrainer), and tests for generated projects.
-
-License: MIT-style prototype (see project metadata)
-
-Enjoy — and tell me if you want the generator to inline more helpers or to add new templates.
-
-
+- `main.py`: Sample entrypoint running the library version directly.
+- `spec.md`: Design specification.
+- `config.yaml`: Default configuration.
