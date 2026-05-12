@@ -31,7 +31,7 @@ class Trainer:
 
         self.model = model or build_model(config.model)
         self.model.to(self.device)
-        self.loss_fn = nn.CrossEntropyLoss()
+        self.loss_fn = nn.CrossEntropyLoss(ignore_index=0)
         self.optimizer = torch.optim.AdamW(
             self.model.parameters(), lr=config.trainer.learning_rate
         )
@@ -69,14 +69,16 @@ class Trainer:
     ) -> tuple[torch.Tensor, torch.Tensor]:
         logits = output["logits"].reshape(-1, output["logits"].size(-1))
         targets = output["targets"].reshape(-1)
-        return logits, targets
+        mask = targets != 0
+        return logits[mask], targets[mask]
 
     def _flatten_loss(
         self, output: dict[str, torch.Tensor]
     ) -> tuple[torch.Tensor, torch.Tensor]:
         logits = output["logits"].reshape(-1, output["logits"].size(-1))
         targets = output["targets"].reshape(-1)
-        return logits, targets
+        mask = targets != 0
+        return logits[mask], targets[mask]
 
     def _train_step(
         self, engine: Engine, batch: dict[str, torch.Tensor]

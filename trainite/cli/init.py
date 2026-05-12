@@ -187,7 +187,7 @@ def _build_templates(
                 ("class PreTrainer:", "class Trainer:"),
                 (f"{model_spec.builder_symbol}(config.model)", "build_model(config.model)"),
                 (
-                    f"{dataset_spec.builder_symbol}(config)",
+                    f"{dataset_spec.builder_symbol}(config.dataset)",
                     "build_dataloaders(config.dataset)",
                 ),
                 ("PreTrainer", "Trainer"),

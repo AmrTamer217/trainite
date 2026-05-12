@@ -66,7 +66,7 @@ class TransformerModel(nn.Module):
 
     def __init__(self, config: TransformerModelConfig) -> None:
         super().__init__()
-        self.embedding = nn.Embedding(config.vocab_size, config.hidden_size)
+        self.embedding = nn.Embedding(config.vocab_size + 1, config.hidden_size)
         self.pos_encoding = PositionalEncoding(
             config.hidden_size, config.max_seq_len, config.dropout
         )
@@ -82,7 +82,7 @@ class TransformerModel(nn.Module):
             ]
         )
         self.norm = nn.LayerNorm(config.hidden_size)
-        self.proj = nn.Linear(config.hidden_size, config.vocab_size)
+        self.proj = nn.Linear(config.hidden_size, config.vocab_size + 1)
 
     def forward(self, input_ids: torch.Tensor) -> torch.Tensor:
         x = self.embedding(input_ids) * math.sqrt(self.embedding.embedding_dim)

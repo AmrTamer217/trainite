@@ -1,6 +1,4 @@
 from __future__ import annotations
-from typing import Any
-
 from pathlib import Path
 
 import yaml
@@ -20,9 +18,9 @@ class ProjectConfig(BaseModel):
     model_name: str = "transformer"
     dataset_name: str = "string-reverse"
     trainer_name: str = "pretrainer"
-    model: Any = Field(default_factory=TransformerModelConfig)
-    dataset: Any = Field(default_factory=StringReverseDatasetConfig)
-    trainer: Any = Field(default_factory=PreTrainerConfig)
+    model: TransformerModelConfig = Field(default_factory=TransformerModelConfig)
+    dataset: StringReverseDatasetConfig = Field(default_factory=StringReverseDatasetConfig)
+    trainer: PreTrainerConfig = Field(default_factory=PreTrainerConfig)
     output: OutputConfig = Field(default_factory=OutputConfig)
     seed: int = 42
 
