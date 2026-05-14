@@ -13,12 +13,12 @@ class StringReverseDataset(Dataset):
         size: int,
         min_seq_len: int,
         max_seq_len: int,
-        vocab_size: int,
         seed: int,
         fixed_length: bool = True,
         alphabet: str = "abcdefghijklmnopqrstuvwxyz",
     ) -> None:
         self.alphabet = alphabet
+        vocab_size = len(alphabet)
         self.char_to_id = {c: i + 1 for i, c in enumerate(alphabet)}
         self.id_to_char = {i + 1: c for i, c in enumerate(alphabet)}
         
@@ -70,7 +70,7 @@ def collate_fn(batch: list[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:
     labels = [item["labels"] for item in batch]
     
     padded_input_ids = pad_sequence(input_ids, batch_first=True, padding_value=0)
-    padded_labels = pad_sequence(labels, batch_first=True, padding_value=0)
+    padded_labels = pad_sequence(labels, batch_first=True, padding_value=-100)
     
     return {
         "input_ids": padded_input_ids,
@@ -85,7 +85,6 @@ def build_string_reverse_dataloaders(
         size=config.train_size,
         min_seq_len=config.min_seq_len,
         max_seq_len=config.max_seq_len,
-        vocab_size=config.vocab_size,
         seed=config.seed,
         fixed_length=config.fixed_length,
         alphabet=config.alphabet,
@@ -94,7 +93,6 @@ def build_string_reverse_dataloaders(
         size=config.val_size,
         min_seq_len=config.min_seq_len,
         max_seq_len=config.max_seq_len,
-        vocab_size=config.vocab_size,
         seed=config.seed + 1,
         fixed_length=config.fixed_length,
         alphabet=config.alphabet,

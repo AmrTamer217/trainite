@@ -31,7 +31,7 @@ class PreTrainer:
 
         self.model = model or build_transformer_model(config.model)
         self.model.to(self.device)
-        self.loss_fn = nn.CrossEntropyLoss(ignore_index=0)
+        self.loss_fn = nn.CrossEntropyLoss()
         self.optimizer = torch.optim.AdamW(
             self.model.parameters(), lr=config.trainer.learning_rate
         )
@@ -69,7 +69,7 @@ class PreTrainer:
     ) -> tuple[torch.Tensor, torch.Tensor]:
         logits = output["logits"].reshape(-1, output["logits"].size(-1))
         targets = output["targets"].reshape(-1)
-        mask = targets != 0
+        mask = targets != -100
         return logits[mask], targets[mask]
 
     def _flatten_loss(
@@ -77,7 +77,7 @@ class PreTrainer:
     ) -> tuple[torch.Tensor, torch.Tensor]:
         logits = output["logits"].reshape(-1, output["logits"].size(-1))
         targets = output["targets"].reshape(-1)
-        mask = targets != 0
+        mask = targets != -100
         return logits[mask], targets[mask]
 
     def _train_step(

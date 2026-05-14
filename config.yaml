@@ -13,7 +13,6 @@ model:
   
 dataset:
   alphabet: "abcdefghijklmnopqrstuvwxyz"
-  vocab_size: 26
   train_size: 256
   val_size: 64
   batch_size: 32
