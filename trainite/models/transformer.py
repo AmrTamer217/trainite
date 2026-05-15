@@ -66,7 +66,7 @@ class TransformerModel(nn.Module):
 
     def __init__(self, config: TransformerModelConfig) -> None:
         super().__init__()
-        self.embedding = nn.Embedding(config.vocab_size + 1, config.hidden_size)
+        self.embedding = nn.Embedding(config.vocab_size + 1, config.hidden_size, padding_idx=0)
         self.pos_encoding = PositionalEncoding(
             config.hidden_size, config.max_seq_len, config.dropout
         )
