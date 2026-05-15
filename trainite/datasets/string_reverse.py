@@ -7,6 +7,13 @@ from torch.nn.utils.rnn import pad_sequence
 from trainite.config.dataset import StringReverseDatasetConfig
 
 
+ALPHABET_PRESETS = {
+    "@alpha": "abcdefghijklmnopqrstuvwxyz",
+    "@digits": "0123456789",
+    "@alphanumeric": "abcdefghijklmnopqrstuvwxyz0123456789",
+}
+
+
 class StringReverseDataset(Dataset):
     def __init__(
         self,
@@ -17,10 +24,10 @@ class StringReverseDataset(Dataset):
         fixed_length: bool = True,
         alphabet: str = "abcdefghijklmnopqrstuvwxyz",
     ) -> None:
-        self.alphabet = alphabet
-        vocab_size = len(alphabet)
-        self.char_to_id = {c: i + 1 for i, c in enumerate(alphabet)}
-        self.id_to_char = {i + 1: c for i, c in enumerate(alphabet)}
+        self.alphabet = ALPHABET_PRESETS.get(alphabet, alphabet)
+        vocab_size = len(self.alphabet)
+        self.char_to_id = {c: i + 1 for i, c in enumerate(self.alphabet)}
+        self.id_to_char = {i + 1: c for i, c in enumerate(self.alphabet)}
         
         generator = torch.Generator().manual_seed(seed)
         
