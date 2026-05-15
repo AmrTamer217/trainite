@@ -1,12 +1,10 @@
-from __future__ import annotations
-
 import argparse
 import inspect
 import textwrap
 from pathlib import Path
 from typing import Iterable, Sequence
 
-from trainite.config import default_config, dump_config
+from trainite.config import OutputConfig, ProjectConfig, dump_config
 from trainite.config.registry import (
     REGISTRY,
     get_dataset_spec,
@@ -38,72 +36,6 @@ def _render_class_source(cls: type) -> str:
     return textwrap.dedent(inspect.getsource(cls)).strip()
 
 
-def _build_config_template(
-    model_name: str, dataset_name: str, trainer_name: str
-) -> str:
-    model_spec = get_model_spec(model_name)
-    dataset_spec = get_dataset_spec(dataset_name)
-    trainer_spec = get_trainer_spec(trainer_name)
-    model_source = textwrap.indent(_render_class_source(model_spec.config_cls), "")
-    dataset_source = textwrap.indent(_render_class_source(dataset_spec.config_cls), "")
-    trainer_source = textwrap.indent(_render_class_source(trainer_spec.config_cls), "")
-    lines = [
-        "from __future__ import annotations",
-        "",
-        "from pathlib import Path",
-        "",
-        "import yaml",
-        "from pydantic import BaseModel, Field",
-        "",
-        model_source,
-        "",
-        dataset_source,
-        "",
-        trainer_source,
-        "",
-        "",
-        "class OutputConfig(BaseModel):",
-        '    root: str = "output"',
-        f'    run_name: str = "{model_name}__{dataset_name}"',
-        "",
-        "",
-        "class ProjectConfig(BaseModel):",
-        f'    model_name: str = "{model_name}"',
-        f'    dataset_name: str = "{dataset_name}"',
-        f'    trainer_name: str = "{trainer_name}"',
-        f"    model: {model_spec.config_cls.__name__} = Field(default_factory={model_spec.config_cls.__name__})",
-        f"    dataset: {dataset_spec.config_cls.__name__} = Field(default_factory={dataset_spec.config_cls.__name__})",
-        f"    trainer: {trainer_spec.config_cls.__name__} = Field(default_factory={trainer_spec.config_cls.__name__})",
-        "    output: OutputConfig = Field(default_factory=OutputConfig)",
-        "    seed: int = 42",
-        "",
-        "",
-        "def load_yaml(path: str | Path) -> dict:",
-        "    config_path = Path(path)",
-        "    data = yaml.safe_load(config_path.read_text()) or {}",
-        "    if not isinstance(data, dict):",
-        '        raise ValueError("Config file must contain a mapping")',
-        "    return data",
-        "",
-        "",
-        "def dump_yaml(data: dict, path: str | Path) -> None:",
-        "    Path(path).write_text(yaml.safe_dump(data, sort_keys=False))",
-        "",
-        "",
-        "def load_config(path: str | Path) -> ProjectConfig:",
-        "    return ProjectConfig.model_validate(load_yaml(path))",
-        "",
-        "",
-        "def dump_config(config: ProjectConfig, path: str | Path) -> None:",
-        "    dump_yaml(config.model_dump(), path)",
-        "",
-        "",
-        "def default_config() -> ProjectConfig:",
-        "    return ProjectConfig()",
-    ]
-    return "\n".join(lines).strip() + "\n"
-
-
 def _prompt_text(prompt: str, default: str) -> str:
     value = input(f"{prompt} [{default}]: ").strip()
     return value or default
@@ -132,6 +64,8 @@ def _project_directory(raw_project_dir: str, force: bool) -> Path:
 def _write_file(path: Path, content: str, force: bool) -> None:
     if path.exists() and not force:
         raise FileExistsError(f"{path} already exists; pass --force to overwrite it")
+    if path.parent:
+        path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content)
 
 
@@ -142,69 +76,38 @@ def _build_templates(
     dataset_spec = get_dataset_spec(dataset_name)
     trainer_spec = get_trainer_spec(trainer_name)
     return {
-        "config.py": _build_config_template(model_name, dataset_name, trainer_name),
-        "model.py": _render_template(
+        f"models/{model_spec.name}.py": _render_template(
             model_spec.implementation_path,
-            [
-                (
-                    f"from trainite.config.model import {model_spec.config_cls.__name__}",
-                    f"from config import {model_spec.config_cls.__name__}",
-                ),
-                (
-                    model_spec.builder_symbol,
-                    "build_model",
-                ),
-            ],
+            model_spec.template_replacements,
         ),
-        "dataset.py": _render_template(
+        f"dataset/{dataset_spec.name}.py": _render_template(
             dataset_spec.implementation_path,
-            [
-                (
-                    f"from trainite.config.dataset import {dataset_spec.config_cls.__name__}",
-                    f"from config import {dataset_spec.config_cls.__name__}",
-                ),
-                (
-                    dataset_spec.builder_symbol,
-                    "build_dataloaders",
-                ),
-            ],
+            dataset_spec.template_replacements,
         ),
         "trainer.py": _render_template(
             trainer_spec.implementation_path,
-            [
-                (
-                    "from trainite.config import ProjectConfig, dump_config",
-                    "from config import ProjectConfig, dump_config",
-                ),
-                (
-                    f"from trainite.datasets import {dataset_spec.builder_symbol}",
-                    "from dataset import build_dataloaders",
-                ),
-                (
-                    f"from trainite.models import {model_spec.builder_symbol}",
-                    "from model import build_model",
-                ),
-                ("class PreTrainer:", "class Trainer:"),
-                (f"{model_spec.builder_symbol}(config.model)", "build_model(config.model)"),
-                (
-                    f"{dataset_spec.builder_symbol}(config)",
-                    "build_dataloaders(config.dataset)",
-                ),
-                ("PreTrainer", "Trainer"),
-            ],
+            trainer_spec.template_replacements,
         ),
+        "utils.py": _render_template(
+            PROJECT_ROOT / "trainite/utils.py",
+            [("trainite.config", "config")],
+        ),
+        "config.py": _render_template(PROJECT_ROOT / "trainite/config/base.py", []),
         "main.py": _render_template(
-            PROJECT_ROOT / "main.py",
+            PROJECT_ROOT / "trainite/main.py",
             [
                 (
-                    "from trainite.config import default_config, load_config",
-                    "from config import default_config, load_config",
+                    "trainite.config",
+                    "config",
                 ),
                 (
                     "from trainite.trainers import PreTrainer",
-                    "from trainer import Trainer",
+                    f"from trainer import {trainer_spec.implementation_symbol}",
                 ),
-                ("trainer = PreTrainer(config)", "trainer = Trainer(config)"),
+                (
+                    "trainer = PreTrainer(config)",
+                    f"trainer = {trainer_spec.implementation_symbol}(config)",
+                ),
             ],
         ),
     }
@@ -229,6 +132,9 @@ def build_parser() -> argparse.ArgumentParser:
     init_parser.add_argument("--output-root", help="Output root for generated config")
     init_parser.add_argument("--run-name", help="Run name for generated config")
     init_parser.add_argument(
+        "--trainer", choices=TRAINER_CHOICES, help="Starter trainer template to use"
+    )
+    init_parser.add_argument(
         "--force",
         action="store_true",
         help="Overwrite existing starter files",
@@ -245,41 +151,59 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def init_project(args: argparse.Namespace) -> None:
-    defaults = default_config()
-    if args.project_dir:
-        project_dir_input = args.project_dir
-    elif args.yes:
-        project_dir_input = "my-lm-experiment"
-    else:
-        project_dir_input = _prompt_text("Project directory", "my-lm-experiment")
-    project_dir = _project_directory(project_dir_input, args.force)
-
     if args.yes:
-        model_name = args.model or defaults.model_name
-        dataset_name = args.dataset or defaults.dataset_name
-        output_root = args.output_root or defaults.output.root
+        project_dir = args.project_dir or "my-cool-experiment"
+        model_name = args.model or MODEL_CHOICES[0]
+        dataset_name = args.dataset or DATASET_CHOICES[0]
+        trainer_name = args.trainer or TRAINER_CHOICES[0]
+        output_root = args.output_root or "outputs"
         run_name = args.run_name or f"{model_name}__{dataset_name}"
     else:
+        project_dir = args.project_dir or _prompt_text(
+            "Project directory", "my-cool-experiment"
+        )
         model_name = args.model or _prompt_choice(
-            "Model", MODEL_CHOICES, defaults.model_name
+            "Model", MODEL_CHOICES, MODEL_CHOICES[0]
         )
         dataset_name = args.dataset or _prompt_choice(
-            "Dataset", DATASET_CHOICES, defaults.dataset_name
+            "Dataset", DATASET_CHOICES, DATASET_CHOICES[0]
         )
-        output_root = args.output_root or _prompt_text(
-            "Output directory", defaults.output.root
+        trainer_name = args.trainer or _prompt_choice(
+            "Trainer", TRAINER_CHOICES, TRAINER_CHOICES[0]
         )
+        output_root = args.output_root or _prompt_text("Output directory", "outputs")
         run_name = args.run_name or _prompt_text(
             "Run name", f"{model_name}__{dataset_name}"
         )
 
-    starter_config = default_config()
-    starter_config.model_name = model_name
-    starter_config.dataset_name = dataset_name
-    starter_config.output.root = output_root
-    starter_config.output.run_name = run_name
+    project_dir = _project_directory(project_dir, args.force)
 
-    templates = _build_templates(model_name, dataset_name, defaults.trainer_name)
+    output_config = OutputConfig(root=output_root, run_name=run_name)
+
+    # Build templates for the starter project
+    templates = _build_templates(model_name, dataset_name, trainer_name)
+
+    model_spec = get_model_spec(model_name)
+    dataset_spec = get_dataset_spec(dataset_name)
+    trainer_spec = get_trainer_spec(trainer_name)
+
+    # Update config to point to the correct builder functions for the model and dataset
+    model_component = model_spec.config_cls()
+    dataset_component = dataset_spec.config_cls()
+    trainer_component = trainer_spec.config_cls()
+
+    model_component.target = f"models.{model_spec.name}.{model_spec.builder_symbol}"
+    dataset_component.target = (
+        f"dataset.{dataset_spec.name}.{dataset_spec.builder_symbol}"
+    )
+
+    starter_config = ProjectConfig(
+        model=model_component,
+        dataset=dataset_component,
+        trainer=trainer_component,
+        output=output_config,
+    )
+
     dump_config(starter_config, project_dir / "config.yaml")
     for filename, content in templates.items():
         _write_file(project_dir / filename, content, args.force)

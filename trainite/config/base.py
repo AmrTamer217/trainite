@@ -1,30 +1,35 @@
-from __future__ import annotations
+from pathlib import Path
 from typing import Any
 
-from pathlib import Path
-
+import torch
 import yaml
-from pydantic import BaseModel, Field
-
-from trainite.config.dataset import StringReverseDatasetConfig
-from trainite.config.model import TransformerModelConfig
-from trainite.config.trainer import PreTrainerConfig
+from omegaconf import OmegaConf
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class OutputConfig(BaseModel):
-    root: str = "output"
-    run_name: str = "dummy-pretrain"
+    root: str
+    run_name: str
+
+
+class ComponentConfig(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    target: str = Field(alias="_target_")
+
+
+class TrainerConfig(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    learning_rate: float = 1e-3
+    log_every_steps: int = 10
 
 
 class ProjectConfig(BaseModel):
-    model_name: str = "transformer"
-    dataset_name: str = "string-reverse"
-    trainer_name: str = "pretrainer"
-    model: Any = Field(default_factory=TransformerModelConfig)
-    dataset: Any = Field(default_factory=StringReverseDatasetConfig)
-    trainer: Any = Field(default_factory=PreTrainerConfig)
-    output: OutputConfig = Field(default_factory=OutputConfig)
+    model: ComponentConfig
+    dataset: ComponentConfig
+    trainer: TrainerConfig
+    output: OutputConfig
     seed: int = 42
+    device: str = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 def load_yaml(path: str | Path) -> dict:
@@ -35,17 +40,15 @@ def load_yaml(path: str | Path) -> dict:
     return data
 
 
-def dump_yaml(data: dict, path: str | Path) -> None:
+def dump_yaml(data: Any, path: str | Path) -> None:
     Path(path).write_text(yaml.safe_dump(data, sort_keys=False))
 
 
 def dump_config(config: ProjectConfig, path: str | Path) -> None:
-    dump_yaml(config.model_dump(), path)
+    data = config.model_dump(by_alias=True, polymorphic_serialization=True)
+    dump_yaml(data, path)
 
 
 def load_config(path: str | Path) -> ProjectConfig:
-    return ProjectConfig.model_validate(load_yaml(path))
-
-
-def default_config() -> ProjectConfig:
-    return ProjectConfig()
+    raw_conf = OmegaConf.load(path)
+    return ProjectConfig.model_validate(raw_conf)
