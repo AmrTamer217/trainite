@@ -1,10 +1,6 @@
-from __future__ import annotations
-
 import torch
 from torch.utils.data import DataLoader, Dataset
 from torch.nn.utils.rnn import pad_sequence
-
-from trainite.config.dataset import StringReverseDatasetConfig
 
 
 ALPHABET_PRESETS = {
@@ -86,36 +82,45 @@ def collate_fn(batch: list[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:
 
 
 def build_string_reverse_dataloaders(
-    config: StringReverseDatasetConfig,
+    train_size: int = 256,
+    val_size: int = 64,
+    batch_size: int = 32,
+    min_seq_len: int = 1,
+    max_seq_len: int = 16,
+    fixed_length: bool = True,
+    alphabet: str = "abcdefghijklmnopqrstuvwxyz",
+    num_workers: int = 0,
+    seed: int = 7,
+    **kwargs,
 ) -> tuple[DataLoader, DataLoader]:
     train_dataset = StringReverseDataset(
-        size=config.train_size,
-        min_seq_len=config.min_seq_len,
-        max_seq_len=config.max_seq_len,
-        seed=config.seed,
-        fixed_length=config.fixed_length,
-        alphabet=config.alphabet,
+        size=train_size,
+        min_seq_len=min_seq_len,
+        max_seq_len=max_seq_len,
+        seed=seed,
+        fixed_length=fixed_length,
+        alphabet=alphabet,
     )
     val_dataset = StringReverseDataset(
-        size=config.val_size,
-        min_seq_len=config.min_seq_len,
-        max_seq_len=config.max_seq_len,
-        seed=config.seed + 1,
-        fixed_length=config.fixed_length,
-        alphabet=config.alphabet,
+        size=val_size,
+        min_seq_len=min_seq_len,
+        max_seq_len=max_seq_len,
+        seed=seed + 1,
+        fixed_length=fixed_length,
+        alphabet=alphabet,
     )
     train_loader = DataLoader(
         train_dataset,
-        batch_size=config.batch_size,
+        batch_size=batch_size,
         shuffle=True,
-        num_workers=config.num_workers,
         collate_fn=collate_fn,
+        num_workers=num_workers,
     )
     val_loader = DataLoader(
         val_dataset,
-        batch_size=config.batch_size,
+        batch_size=batch_size,
         shuffle=False,
-        num_workers=config.num_workers,
         collate_fn=collate_fn,
+        num_workers=num_workers,
     )
     return train_loader, val_loader

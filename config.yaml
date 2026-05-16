@@ -3,6 +3,7 @@ dataset_name: "string-reverse"
 trainer_name: "pretrainer"
 
 model:
+  _target_: "trainite.models.transformer.build_transformer_model"
   vocab_size: 26
   hidden_size: 64
   num_layers: 2
@@ -12,7 +13,8 @@ model:
   max_seq_len: 128
   
 dataset:
-  alphabet: "abcdefghijklmnopqrstuvwxyz"
+  _target_: "trainite.datasets.string_reverse.build_string_reverse_dataloaders"
+  alphabet: "@alpha"
   train_size: 256
   val_size: 64
   batch_size: 32
