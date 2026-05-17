@@ -9,6 +9,7 @@ class StringReverseDatasetConfig(ComponentConfig):
         alias="_target_",
     )
     alphabet: str = "abcdefghijklmnopqrstuvwxyz"
+    vocab_size: int = 26
     train_size: int = 256
     val_size: int = 64
     batch_size: int = 32
