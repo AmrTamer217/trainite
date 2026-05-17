@@ -31,7 +31,7 @@ class PreTrainer:
         **kwargs,
     ) -> None:
         self.config = config
-        self.device = device or config.device
+        self.device = device or config.trainer.device
         self.epochs = epochs or config.trainer.epochs
         self.log_every_steps = log_every_steps or config.trainer.log_every_steps
         self.grad_clip_norm = grad_clip_norm or config.trainer.grad_clip_norm

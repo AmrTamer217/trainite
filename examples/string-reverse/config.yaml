@@ -20,6 +20,7 @@ dataset:
   num_workers: 2
   seed: 7
 trainer:
+  device: cpu
   learning_rate: 0.001
   log_every_steps: 10
   type: pre
@@ -29,4 +30,3 @@ output:
   root: outputs
   run_name: transformer__string-reverse
 seed: 42
-device: cpu

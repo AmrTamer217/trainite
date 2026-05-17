@@ -37,6 +37,7 @@ class ComponentConfig(BaseModel):
 
 class TrainerConfig(BaseModel):
     model_config = ConfigDict(extra="allow")
+    device: str = "cuda" if torch.cuda.is_available() else "cpu"
     learning_rate: float = 1e-3
     log_every_steps: int = 10
 
@@ -47,7 +48,6 @@ class ProjectConfig(BaseModel):
     trainer: TrainerConfig
     output: OutputConfig
     seed: int = 42
-    device: str = "cuda" if torch.cuda.is_available() else "cpu"
 
     @model_validator(mode="after")
     def validate_vocab_size(self) -> "ProjectConfig":
