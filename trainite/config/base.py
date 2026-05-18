@@ -1,7 +1,6 @@
 from pathlib import Path
 from typing import Any
 
-import torch
 import yaml
 from omegaconf import OmegaConf
 from pydantic import BaseModel, ConfigDict, Field
@@ -29,7 +28,7 @@ class ProjectConfig(BaseModel):
     trainer: TrainerConfig
     output: OutputConfig
     seed: int = 42
-    device: str = "cuda" if torch.cuda.is_available() else "cpu"
+    device: str = "cuda"
 
 
 def load_yaml(path: str | Path) -> dict:
@@ -40,7 +39,7 @@ def load_yaml(path: str | Path) -> dict:
     return data
 
 
-def dump_yaml(data: Any, path: str | Path) -> None:
+def dump_yaml(data: dict["str", Any], path: str | Path) -> None:
     Path(path).write_text(yaml.safe_dump(data, sort_keys=False))
 
 

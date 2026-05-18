@@ -14,6 +14,7 @@ class ComponentSpec:
     implementation_symbol: str
     builder_symbol: str
     template_replacements: list[tuple[str, str]] = field(default_factory=list)
+    dependencies: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -39,6 +40,7 @@ MODEL_SPECS = {
         implementation_symbol="TransformerModel",
         builder_symbol="build_transformer_model",
         template_replacements=[],
+        dependencies=["torch"],
     ),
 }
 
@@ -50,6 +52,7 @@ DATASET_SPECS = {
         implementation_symbol="StringReverseDataset",
         builder_symbol="build_string_reverse_dataloaders",
         template_replacements=[],
+        dependencies=["torch"],
     ),
 }
 
@@ -67,6 +70,7 @@ TRAINER_SPECS = {
             ),
             ("trainite.utils", "utils"),
         ],
+        dependencies=["torch", "pytorch-ignite", "tensorboard"],
     ),
 }
 
