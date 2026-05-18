@@ -4,7 +4,7 @@ trainer_name: "pretrainer"
 
 model:
   _target_: "trainite.models.transformer.build_transformer_model"
-  vocab_size: ${dataset.vocab_size}
+  vocab_size: 26
   hidden_size: 64
   num_layers: 2
   num_heads: 2
@@ -15,7 +15,6 @@ model:
 dataset:
   _target_: "trainite.datasets.string_reverse.build_string_reverse_dataloaders"
   alphabet: "@alpha"
-  vocab_size: 26
   train_size: 256
   val_size: 64
   batch_size: 32

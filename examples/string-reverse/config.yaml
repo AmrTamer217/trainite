@@ -1,6 +1,6 @@
 model:
   _target_: models.transformer.build_transformer_model
-  vocab_size: ${dataset.vocab_size}
+  vocab_size: 32
   hidden_size: 64
   num_layers: 2
   num_heads: 2
@@ -9,8 +9,7 @@ model:
   max_seq_len: 128
 dataset:
   _target_: dataset.string-reverse.build_string_reverse_dataloaders
-  alphabet: "@alpha"
-  vocab_size: 26
+  alphabet: abcdefghijklmnopqrstuvwxyz
   train_size: 256
   val_size: 64
   batch_size: 32
