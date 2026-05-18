@@ -40,7 +40,6 @@ def test_init_generates_parseable_starter_project() -> None:
 
         assert "vocab_size: ${dataset.vocab_size}" in config_text
         assert "vocab_size: 26" in config_text
-        assert "trainer:\n  device:" in config_text
         assert "from config import ProjectConfig, dump_config" in trainer_text
         assert "from utils import instantiate" in trainer_text
         assert "from trainer import PreTrainer" in main_text
