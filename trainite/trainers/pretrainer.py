@@ -11,14 +11,14 @@ from ignite.handlers import (
 )
 from ignite.handlers.tensorboard_logger import OptimizerParamsHandler, TensorboardLogger
 from ignite.metrics import Accuracy, Loss, RunningAverage
+from ignite.handlers.fbresearch_logger import FBResearchLogger
+from ignite.utils import setup_logger
 from torch import nn
 from torch.optim.lr_scheduler import LinearLR
 from torch.utils.data import DataLoader
 
 from trainite.config import ProjectConfig, SplitConfig, dump_config
 from trainite.utils import get_target, instantiate
-
-logger = logging.getLogger(__name__)
 
 
 class PreTrainer:
@@ -35,6 +35,7 @@ class PreTrainer:
         val_loader=None,
         **kwargs,
     ) -> None:
+        self.logger = setup_logger("trainer", level=logging.INFO)
         torch.manual_seed(config.seed)
 
         self.config = config
@@ -53,7 +54,7 @@ class PreTrainer:
             if config.data.val:
                 val_loader = self._build_dataloader(config.data.val)
             else:
-                logger.warning(
+                self.logger.warning(
                     "Validation config not provided. Falling back to training config for validation. "
                     "This is not recommended for actual training as it may lead to overfitting."
                 )
@@ -98,6 +99,7 @@ class PreTrainer:
             collate_fn = get_target(split_config.dataloader.collate_fn.target)
 
         return DataLoader(dataset, collate_fn=collate_fn, **dl_kwargs)
+
 
     def _make_run_dir(self) -> Path:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -177,19 +179,22 @@ class PreTrainer:
         }
 
     def _attach_handlers(self) -> None:
-        # 1. Log training loss every N steps
-        def _log_loss(engine):
-            logger.info(
-                f"epoch={engine.state.epoch} iteration={engine.state.iteration} "
-                f"train_loss={engine.state.output['loss']:.4f}"
-            )
-
-        self.engine.add_event_handler(
-            Events.ITERATION_COMPLETED(every=self.log_every_steps),
-            _log_loss,
+        self.logger = setup_logger(
+            "trainer",
+            level=logging.INFO,
+            filepath=str(self.run_dir / "output.log") if self.run_dir else None,
+            reset=True,
+        )
+        self.train_fb_logger = FBResearchLogger(logger=self.logger, show_output=True)
+        self.train_fb_logger.attach(
+            self.engine,
+            name="Train",
+            every=self.log_every_steps,
+            optimizer=self.optimizer,
+            output_transform=lambda output: {"loss": output["loss"].item()},
         )
 
-        # 2. Step LR scheduler every iteration
+        # 1. Step LR scheduler every iteration
         warmup_iters = max(2, int(0.1 * self.total_iters))
         linear_decay = LinearLR(
             self.optimizer,
@@ -206,10 +211,10 @@ class PreTrainer:
 
         self.engine.add_event_handler(Events.ITERATION_COMPLETED, self.scheduler)
 
-        # 3. Run evaluations
+        # 2. Run evaluations
         self.engine.add_event_handler(Events.EPOCH_COMPLETED, self._run_evaluations)
 
-        # 4. ModelCheckpoint
+        # 3. ModelCheckpoint
         to_save = {"model": self.model, "optimizer": self.optimizer}
 
         def score_function(engine):
@@ -283,17 +288,17 @@ class PreTrainer:
         self.handlers["tensorboard"] = tb_logger
 
     def _run_evaluations(self, engine: Engine) -> None:
-        logger.info("Evaluating on training set...")
+        self.logger.info("Evaluating on training set...")
         self.train_evaluator.run(self.train_loader)
-
-        logger.info("Evaluating on validation set...")
+        
+        self.logger.info("Evaluating on validation set...")
         self.val_evaluator.run(self.val_loader)
 
         train_metrics = self.train_evaluator.state.metrics
         val_metrics = self.val_evaluator.state.metrics
         epoch = engine.state.epoch
 
-        logger.info(
+        self.logger.info(
             "epoch=%s train_loss=%.4f train_acc=%.4f val_loss=%.4f val_acc=%.4f",
             epoch,
             train_metrics["loss"],
@@ -309,7 +314,7 @@ class PreTrainer:
             dump_config(self.config, self.run_dir / "config.yaml")
             self._attach_handlers()
 
-        logger.info("starting run in %s", self.run_dir)
+        self.logger.info("starting run in %s", self.run_dir)
         config_data = self.config.model_dump(
             by_alias=True, polymorphic_serialization=True
         )
