@@ -1,4 +1,5 @@
 from pydantic import Field
+
 from trainite.config.base import ComponentConfig
 
 
@@ -8,8 +9,8 @@ class StringReverseDatasetConfig(ComponentConfig):
         alias="_target_",
     )
     size: int = 256
-    alphabet: str = "abcdefghijklmnopqrstuvwxyz"
-    min_seq_len: int = 1
-    max_seq_len: int = 16
-    fixed_length: bool = True
+    charset: str | None = "@alpha"
+    min_seq_len: int | None = 1
+    max_seq_len: int | None = 16
+    seq_len: int | None = None
     seed: int = 7

@@ -1,4 +1,4 @@
-# Trainite Project: string-reverse
+# Trainite Project: string_reverse
 
 Welcome to your new Trainite-generated training project! 
 
