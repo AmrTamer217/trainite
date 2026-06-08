@@ -127,11 +127,6 @@ def generate_uv_project(name: str, version: str, dependencies: list[str]) -> str
     project.add("requires-python", ">=3.10")
     doc.add("project", project)
 
-    build_system = tomlkit.table()
-    build_system.add("requires", ["setuptools>=61.0"])
-    build_system.add("build-backend", "setuptools.build_meta")
-    doc.add("build-system", build_system)
-
     return tomlkit.dumps(doc)
 
 
