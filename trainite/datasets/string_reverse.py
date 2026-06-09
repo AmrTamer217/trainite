@@ -152,13 +152,13 @@ class StringReverseDataset(Dataset):
             target = min(per_seq_size, max_possible_combinations)
 
             # Safety cap to avoid infinite loops when the space is small
+            attempts = 0
             max_attempts = target * 20
 
-            while (
-                len(unique_sequences) < target and len(unique_sequences) < max_attempts
-            ):
+            while len(unique_sequences) < target and attempts < max_attempts:
                 seq = "".join(rng.choices(chars, k=length))
                 unique_sequences.add(seq)
+                attempts += 1
 
             if len(unique_sequences) < per_seq_size:
                 warnings.warn(
