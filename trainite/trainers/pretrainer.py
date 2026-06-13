@@ -2,7 +2,7 @@ import logging
 from collections.abc import Sized
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Protocol, cast
+from typing import Protocol, cast
 
 import torch
 from ignite.engine import Engine, Events
@@ -17,18 +17,23 @@ from ignite.handlers.param_scheduler import ParamScheduler
 from ignite.handlers.tensorboard_logger import OptimizerParamsHandler, TensorboardLogger
 from ignite.metrics import Accuracy, Loss, RunningAverage
 from ignite.utils import setup_logger
+from pydantic import BaseModel, ConfigDict, Field
 from torch import nn
 from torch.optim.lr_scheduler import LinearLR
 from torch.utils.data import DataLoader, Dataset, random_split
 
-from trainite.config import (
-    DataConfig,
+from trainite.config.base import (
+    ComponentConfig,
+    DataConfigBase,
     DataLoaderConfig,
-    ProjectConfig,
+    OptimizerConfig,
+    OutputConfig,
     SplitConfig,
-    dump_config,
 )
-from trainite.utils import get_target, instantiate
+
+# __MODEL_IMPORT__
+# __DATASET_IMPORT__
+from trainite.utils import dump_config, get_target, instantiate
 
 
 class GenerativeModel(Protocol):
@@ -36,9 +41,32 @@ class GenerativeModel(Protocol):
         self,
         prompt: list[str],
         max_new_tokens: int,
-        tokenizer: Any,
+        tokenizer: object,
         eos_token_id: int | None = None,
     ) -> list[str]: ...
+
+
+class PreTrainerConfig(BaseModel):
+    model_config = ConfigDict(extra="allow", validate_assignment=True)
+    epochs: int = Field(default=3, gt=0)
+    log_every_steps: int = Field(default=10, gt=0)
+    early_stopping_patience: int | None = Field(default=3, gt=0)
+    # Inference logging — validated at runtime in _setup_inference
+    inference_every_epochs: int | None = Field(default=None)
+    inference_num_samples: int = Field(default=5)
+    max_inference_new_tokens: int = Field(default=16)
+    grad_clip_norm: float | None = Field(default=None, gt=0.0)
+
+
+class ProjectConfig(BaseModel):
+    model_config = ConfigDict(validate_assignment=True)
+    model: ComponentConfig
+    optimizer: OptimizerConfig = Field(default_factory=OptimizerConfig)
+    data: DataConfigBase
+    trainer: PreTrainerConfig
+    output: OutputConfig
+    seed: int = 42
+    device: str = "auto"
 
 
 class PreTrainer:
@@ -50,7 +78,7 @@ class PreTrainer:
         self.train_loader: DataLoader
         self.val_loader: DataLoader | None = None
         self.test_loader: DataLoader | None = None
-        self.inference_tokenizer: Any = None
+        self.inference_tokenizer: object | None = None
 
         self.device: str | torch.device = self._resolve_device()
         self.epochs: int = config.trainer.epochs
@@ -144,7 +172,7 @@ class PreTrainer:
         return DataLoader(dataset, shuffle=shuffle, collate_fn=collate_fn, **dl_kwargs)
 
     def _build_loaders_from_ratios(
-        self, data_config: DataConfig
+        self, data_config: DataConfigBase
     ) -> tuple[DataLoader, DataLoader | None, DataLoader | None]:
         if data_config.dataset is None:
             raise ValueError(
