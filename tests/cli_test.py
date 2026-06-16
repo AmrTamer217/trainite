@@ -121,8 +121,6 @@ def test_generated_string_reversal_project_is_runnable() -> None:
                 text=True,
             )
         except subprocess.CalledProcessError as e:
-            pytest.fail(
-                f"Generated project failed to run:\nSTDOUT: {e.stdout}\nSTDERR: {e.stderr}"
-            )
+            pytest.fail(f"Generated project failed to run:\nSTDOUT: {e.stdout}\nSTDERR: {e.stderr}")
         except subprocess.TimeoutExpired:
             pytest.fail("Generated project timed out")

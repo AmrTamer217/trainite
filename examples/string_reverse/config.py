@@ -76,19 +76,13 @@ class DataConfig(BaseModel):
                 )
 
         if not present_option1 and not present_option2:
-            raise ValueError(
-                "Must provide either explicit splits (train) or automatic splitting (dataset)"
-            )
+            raise ValueError("Must provide either explicit splits (train) or automatic splitting (dataset)")
 
         if present_option1 and "train" not in present_option1:
-            raise ValueError(
-                "Explicit splits mode (Option 1) requires at least the 'train' split"
-            )
+            raise ValueError("Explicit splits mode (Option 1) requires at least the 'train' split")
 
         if present_option2 and "dataset" not in present_option2:
-            raise ValueError(
-                "Automatic splitting mode (Option 2) requires the 'dataset' field"
-            )
+            raise ValueError("Automatic splitting mode (Option 2) requires the 'dataset' field")
 
         return self
 

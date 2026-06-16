@@ -413,15 +413,11 @@ def test_pretrainer_test_without_val(project_config, temp_run_dir):
 
     # Verify that it loaded the last checkpoint
     last_checkpoint_path = trainer.handlers["checkpoint_last"].last_checkpoint
-    mock_load.assert_any_call(
-        last_checkpoint_path, map_location=trainer.device, weights_only=True
-    )
+    mock_load.assert_any_call(last_checkpoint_path, map_location=trainer.device, weights_only=True)
 
 
 def test_pretrainer_dataloader_collate_fn(project_config):
-    project_config.data.train.dataloader.collate_fn = cc(
-        "tests.trainers.pretrainer_test.dummy_collate_fn"
-    )
+    project_config.data.train.dataloader.collate_fn = cc("tests.trainers.pretrainer_test.dummy_collate_fn")
     trainer = PreTrainer(project_config)
     assert trainer.train_loader is not None
     assert trainer.train_loader.collate_fn is dummy_collate_fn
@@ -540,9 +536,7 @@ def test_pretrainer_dataloader_class_collate_fn(project_config):
         seq_len=4,
         vocab_size=10,
     )
-    project_config.data.train.dataloader.collate_fn = cc(
-        "tests.trainers.pretrainer_test.DummyClassCollateFn"
-    )
+    project_config.data.train.dataloader.collate_fn = cc("tests.trainers.pretrainer_test.DummyClassCollateFn")
     trainer = PreTrainer(project_config)
     assert trainer.train_loader is not None
     assert isinstance(trainer.train_loader.collate_fn, DummyClassCollateFn)
@@ -560,15 +554,11 @@ def test_pretrainer_dataloader_class_collate_fn(project_config):
         (1, 32, -1),  # Negative samples
     ],
 )
-def test_setup_inference_invalid_inference_params(
-    project_config, epochs, tokens, samples
-):
+def test_setup_inference_invalid_inference_params(project_config, epochs, tokens, samples):
     project_config.trainer.inference_every_epochs = epochs
     project_config.trainer.max_inference_new_tokens = tokens
     project_config.trainer.inference_num_samples = samples
-    with pytest.raises(
-        ValueError, match="Inference logging parameters must be greater than 0"
-    ):
+    with pytest.raises(ValueError, match="Inference logging parameters must be greater than 0"):
         PreTrainer(project_config)
 
 
@@ -580,15 +570,11 @@ def test_setup_inference_invalid_inference_params(
         (1, 32, "0.3"),  # Invalid type samples
     ],
 )
-def test_setup_inference_invalid_inference_type_params(
-    project_config, epochs, tokens, samples
-):
+def test_setup_inference_invalid_inference_type_params(project_config, epochs, tokens, samples):
     project_config.trainer.__dict__["inference_every_epochs"] = epochs
     project_config.trainer.__dict__["max_inference_new_tokens"] = tokens
     project_config.trainer.__dict__["inference_num_samples"] = samples
-    with pytest.raises(
-        TypeError, match="Inference logging parameters must be integers."
-    ):
+    with pytest.raises(TypeError, match="Inference logging parameters must be integers."):
         PreTrainer(project_config)
 
 

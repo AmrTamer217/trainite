@@ -37,12 +37,8 @@ class CharTokenizer:
         self.eos_token_id = 3
         self.unk_token_id = 4
 
-        self.char_to_id: dict[str, int] = {
-            c: i + 5 for i, c in enumerate(UNIVERSAL_VOCAB)
-        }
-        self.id_to_char: dict[int, str] = {
-            i + 5: c for i, c in enumerate(UNIVERSAL_VOCAB)
-        }
+        self.char_to_id: dict[str, int] = {c: i + 5 for i, c in enumerate(UNIVERSAL_VOCAB)}
+        self.id_to_char: dict[int, str] = {i + 5: c for i, c in enumerate(UNIVERSAL_VOCAB)}
 
         self.special_tokens: dict[int, str] = {
             self.pad_token_id: "<PAD>",
@@ -121,11 +117,7 @@ class StringReverseDataset(Dataset):
         else:
             chars = charset
 
-        self.valid_token_ids = [
-            self.tokenizer.char_to_id[c]
-            for c in chars
-            if c in self.tokenizer.char_to_id
-        ]
+        self.valid_token_ids = [self.tokenizer.char_to_id[c] for c in chars if c in self.tokenizer.char_to_id]
 
         if not self.valid_token_ids:
             raise ValueError(f"Charset '{charset}' resulted in empty token IDs.")
@@ -136,9 +128,7 @@ class StringReverseDataset(Dataset):
         if seq_len is not None:
             lengths = [seq_len]
         elif min_seq_len is None or max_seq_len is None:
-            raise ValueError(
-                "Must specify either seq_len or both min_seq_len and max_seq_len."
-            )
+            raise ValueError("Must specify either seq_len or both min_seq_len and max_seq_len.")
         else:
             lengths = list(range(min_seq_len, max_seq_len + 1))
 
@@ -200,9 +190,7 @@ class StringReverseDataset(Dataset):
         skip_special_tokens: bool = True,
         ignore_index: int = -100,
     ) -> str:
-        return self.tokenizer.decode(
-            ids, skip_special_tokens=skip_special_tokens, ignore_index=ignore_index
-        )
+        return self.tokenizer.decode(ids, skip_special_tokens=skip_special_tokens, ignore_index=ignore_index)
 
 
 class StringReverseDatasetConfig(ComponentConfig):
@@ -220,20 +208,14 @@ class StringReverseDatasetConfig(ComponentConfig):
 
     @model_validator(mode="after")
     def validate_lengths(self) -> "StringReverseDatasetConfig":
-        if self.seq_len is not None and (
-            self.min_seq_len is not None or self.max_seq_len is not None
-        ):
+        if self.seq_len is not None and (self.min_seq_len is not None or self.max_seq_len is not None):
             raise ValueError("Cannot specify both seq_len and min_seq_len/max_seq_len.")
 
         if self.seq_len is None:
             if self.min_seq_len is None or self.max_seq_len is None:
-                raise ValueError(
-                    "Must specify either seq_len or both min_seq_len and max_seq_len."
-                )
+                raise ValueError("Must specify either seq_len or both min_seq_len and max_seq_len.")
             if self.min_seq_len > self.max_seq_len:
-                raise ValueError(
-                    "min_seq_len must be less than or equal to max_seq_len."
-                )
+                raise ValueError("min_seq_len must be less than or equal to max_seq_len.")
         return self
 
 

@@ -58,11 +58,7 @@ class DataWithAutoSplit(BaseModel):
     def check_split_ratios(self) -> Self:
         train_ratio = 1.0 - self.test_ratio - self.val_ratio
         if train_ratio <= 0.5:
-            raise ValueError(
-                "train ratio (1.0 - test_ratio - val_ratio) must be greater than 0.5"
-            )
+            raise ValueError("train ratio (1.0 - test_ratio - val_ratio) must be greater than 0.5")
         if train_ratio > 0.9:
-            raise ValueError(
-                "train ratio (1.0 - test_ratio - val_ratio) must be less than or equal to 0.9"
-            )
+            raise ValueError("train ratio (1.0 - test_ratio - val_ratio) must be less than or equal to 0.9")
         return self

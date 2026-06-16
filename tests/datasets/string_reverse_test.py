@@ -22,25 +22,18 @@ def test_char_tokenizer():
     assert decoded == "abc"
 
     # Test special tokens
-    assert (
-        tokenizer.decode([0, 1, 2, 3, 4], skip_special_tokens=False)
-        == "<PAD><BOS><SEP><EOS><UNK>"
-    )
+    assert tokenizer.decode([0, 1, 2, 3, 4], skip_special_tokens=False) == "<PAD><BOS><SEP><EOS><UNK>"
     assert tokenizer.decode([0, 1, 2, 3, 4], skip_special_tokens=True) == "<UNK>"
 
     # Test unk
-    assert tokenizer.encode("Δ") == [
-        4
-    ]  # Δ is not in the universal vocab, should map to UNK token ID 3
+    assert tokenizer.encode("Δ") == [4]  # Δ is not in the universal vocab, should map to UNK token ID 3
     assert tokenizer.decode([4]) == "<UNK>"
 
 
 def test_string_reverse_dataset():
     per_seq_size = 10
     max_len = 5
-    dataset = StringReverseDataset(
-        per_seq_size=per_seq_size, min_seq_len=max_len, max_seq_len=max_len, seed=42
-    )
+    dataset = StringReverseDataset(per_seq_size=per_seq_size, min_seq_len=max_len, max_seq_len=max_len, seed=42)
 
     assert len(dataset) == per_seq_size
     item = dataset[0]
@@ -60,9 +53,7 @@ def test_string_reverse_dataset():
 
 def test_string_reverse_variable_lengths_and_presets():
     # variable lengths when min/max_seq_len are provided
-    dataset = StringReverseDataset(
-        per_seq_size=20, min_seq_len=1, max_seq_len=8, seed=42
-    )
+    dataset = StringReverseDataset(per_seq_size=20, min_seq_len=1, max_seq_len=8, seed=42)
     source_lengths = [len(x) for x in dataset.source_texts]
     target_lengths = [len(x) for x in dataset.target_texts]
     assert len(source_lengths) == len(target_lengths)
@@ -85,9 +76,7 @@ def test_string_reverse_fixed_lengths_and_presets():
     ["@digits", "@alpha", "@alphanumeric", "@universal", "abc"],
 )
 def test_string_reverse_dataset_charset_presets(preset: str):
-    dataset = StringReverseDataset(
-        per_seq_size=10, seed=42, charset=preset, min_seq_len=1, max_seq_len=5
-    )
+    dataset = StringReverseDataset(per_seq_size=10, seed=42, charset=preset, min_seq_len=1, max_seq_len=5)
     if preset in CHARSET_PRESETS:
         assert len(dataset.valid_token_ids) == len(CHARSET_PRESETS[preset])
     else:
@@ -137,9 +126,7 @@ def test_config_build_string_reverse_dataset():
     from trainite.config.registry import get_model_spec
 
     model_spec = get_model_spec("transformer")
-    collate_fn_obj = get_target(model_spec.collate_fn_target)(
-        tokenizer=dataset.tokenizer
-    )
+    collate_fn_obj = get_target(model_spec.collate_fn_target)(tokenizer=dataset.tokenizer)
 
     dataloader_conf = dataset_conf.dataloader
     dataloader_kwargs = dataloader_conf.model_dump(exclude={"collate_fn"})
@@ -159,7 +146,5 @@ def test_string_reverse_dataset_size_capping_and_warning():
         UserWarning,
         match="Requested 10 unique sequences for seq_len=1 but only 3 could be generated",
     ):
-        dataset = StringReverseDataset(
-            per_seq_size=10, min_seq_len=1, max_seq_len=1, charset="abc", seed=42
-        )
+        dataset = StringReverseDataset(per_seq_size=10, min_seq_len=1, max_seq_len=1, charset="abc", seed=42)
     assert len(dataset) == 3

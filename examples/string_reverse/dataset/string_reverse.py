@@ -32,12 +32,8 @@ class CharTokenizer:
         self.eos_token_id = 2
         self.unk_token_id = 3
 
-        self.char_to_id: dict[str, int] = {
-            c: i + 4 for i, c in enumerate(UNIVERSAL_VOCAB)
-        }
-        self.id_to_char: dict[int, str] = {
-            i + 4: c for i, c in enumerate(UNIVERSAL_VOCAB)
-        }
+        self.char_to_id: dict[str, int] = {c: i + 4 for i, c in enumerate(UNIVERSAL_VOCAB)}
+        self.id_to_char: dict[int, str] = {i + 4: c for i, c in enumerate(UNIVERSAL_VOCAB)}
 
         self.special_tokens: dict[int, str] = {
             self.pad_token_id: "<pad>",
@@ -109,11 +105,7 @@ class StringReverseDataset(Dataset):
         else:
             chars = charset
 
-        self.valid_token_ids = [
-            self.tokenizer.char_to_id[c]
-            for c in chars
-            if c in self.tokenizer.char_to_id
-        ]
+        self.valid_token_ids = [self.tokenizer.char_to_id[c] for c in chars if c in self.tokenizer.char_to_id]
 
         if not self.valid_token_ids:
             raise ValueError(f"Charset '{charset}' resulted in empty token IDs.")
@@ -124,9 +116,7 @@ class StringReverseDataset(Dataset):
         if seq_len is not None:
             lengths = [seq_len]
         elif min_seq_len is None or max_seq_len is None:
-            raise ValueError(
-                "Must specify either seq_len or both min_seq_len and max_seq_len."
-            )
+            raise ValueError("Must specify either seq_len or both min_seq_len and max_seq_len.")
         else:
             lengths = list(range(min_seq_len, max_seq_len + 1))
 
@@ -146,9 +136,7 @@ class StringReverseDataset(Dataset):
             # Safety cap to avoid infinite loops when the space is small
             max_attempts = target * 20
 
-            while (
-                len(unique_sequences) < target and len(unique_sequences) < max_attempts
-            ):
+            while len(unique_sequences) < target and len(unique_sequences) < max_attempts:
                 indices = torch.randint(
                     low=0,
                     high=len(self.valid_token_ids),
@@ -187,9 +175,7 @@ class StringReverseDataset(Dataset):
 
         # Shuffle so variable-length samples are evenly distributed across batches
         final_shuffle_gen = torch.Generator().manual_seed(seed + 1)
-        shuffle_indices = torch.randperm(
-            len(self.inputs), generator=final_shuffle_gen
-        ).tolist()
+        shuffle_indices = torch.randperm(len(self.inputs), generator=final_shuffle_gen).tolist()
 
         self.inputs = [self.inputs[i] for i in shuffle_indices]
         self.labels = [self.labels[i] for i in shuffle_indices]
@@ -209,9 +195,7 @@ class StringReverseDataset(Dataset):
         skip_special_tokens: bool = True,
         ignore_index: int = -100,
     ) -> str:
-        return self.tokenizer.decode(
-            ids, skip_special_tokens=skip_special_tokens, ignore_index=ignore_index
-        )
+        return self.tokenizer.decode(ids, skip_special_tokens=skip_special_tokens, ignore_index=ignore_index)
 
 
 def collate_fn(batch: list[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:

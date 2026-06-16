@@ -70,9 +70,7 @@ def _prompt_text(prompt: str, default: str, instruction: str | None = None) -> s
     return result.strip() or default
 
 
-def _prompt_choice(
-    prompt: str, choices: Sequence[str], default: str, instruction: str | None = None
-) -> str:
+def _prompt_choice(prompt: str, choices: Sequence[str], default: str, instruction: str | None = None) -> str:
     result = questionary.select(
         prompt,
         choices=choices,
@@ -178,9 +176,7 @@ def parse_dependencies(
     return dep_map, other_dep_map
 
 
-def _build_templates(
-    model_name: str, dataset_name: str, trainer_name: str, project_name: str
-) -> dict[str, str]:
+def _build_templates(model_name: str, dataset_name: str, trainer_name: str, project_name: str) -> dict[str, str]:
     model_spec = get_model_spec(model_name)
     dataset_spec = get_dataset_spec(dataset_name)
     trainer_spec = get_trainer_spec(trainer_name)
@@ -191,9 +187,7 @@ def _build_templates(
     final_deps = set(required_deps.values())
     for dep in spec_deps:
         if dep not in required_deps and dep not in other_deps:
-            raise ValueError(
-                f"Dependency '{dep}' required by the selected templates is not listed in pyproject.toml"
-            )
+            raise ValueError(f"Dependency '{dep}' required by the selected templates is not listed in pyproject.toml")
         val = required_deps[dep] if dep in required_deps else other_deps[dep]
         final_deps.add(val)
     model_docs = ""
@@ -202,15 +196,11 @@ def _build_templates(
 
     dataset_docs = ""
     if dataset_spec.readme_template_path:
-        dataset_docs = _render_template(
-            PROJECT_ROOT / dataset_spec.readme_template_path
-        )
+        dataset_docs = _render_template(PROJECT_ROOT / dataset_spec.readme_template_path)
 
     trainer_docs = ""
     if trainer_spec.readme_template_path:
-        trainer_docs = _render_template(
-            PROJECT_ROOT / trainer_spec.readme_template_path
-        )
+        trainer_docs = _render_template(PROJECT_ROOT / trainer_spec.readme_template_path)
 
     # Dynamic replacements that depend on the user's model/dataset/trainer selection.
     trainer_replacements = [
@@ -258,20 +248,12 @@ def _build_templates(
             PROJECT_ROOT / dataset_spec.implementation_path,
             dataset_spec.template_replacements,
         ),
-        "trainer.py": _render_template(
-            PROJECT_ROOT / trainer_spec.implementation_path, trainer_replacements
-        ),
+        "trainer.py": _render_template(PROJECT_ROOT / trainer_spec.implementation_path, trainer_replacements),
         "utils.py": _render_template(PROJECT_ROOT / "trainite/utils.py"),
-        "main.py": _render_template(
-            PROJECT_ROOT / "trainite/main.py", main_replacements
-        ),
-        "README.md": _render_template(
-            PROJECT_ROOT / "trainite/templates/project/README.md", readme_replacements
-        ),
+        "main.py": _render_template(PROJECT_ROOT / "trainite/main.py", main_replacements),
+        "README.md": _render_template(PROJECT_ROOT / "trainite/templates/project/README.md", readme_replacements),
         "config.py": _render_template(PROJECT_ROOT / "trainite/config/base.py"),
-        "pyproject.toml": generate_uv_project(
-            name=project_name, version="0.1.0", dependencies=sorted(final_deps)
-        ),
+        "pyproject.toml": generate_uv_project(name=project_name, version="0.1.0", dependencies=sorted(final_deps)),
     }
 
 
@@ -279,23 +261,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="trainite")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    init_parser = subparsers.add_parser(
-        "init", help="Generate a starter training project"
-    )
-    init_parser.add_argument(
-        "project_dir", nargs="?", help="Directory to create the starter project in"
-    )
-    init_parser.add_argument(
-        "--model", choices=MODEL_CHOICES, help="Starter model template to use"
-    )
-    init_parser.add_argument(
-        "--dataset", choices=DATASET_CHOICES, help="Starter dataset template to use"
-    )
+    init_parser = subparsers.add_parser("init", help="Generate a starter training project")
+    init_parser.add_argument("project_dir", nargs="?", help="Directory to create the starter project in")
+    init_parser.add_argument("--model", choices=MODEL_CHOICES, help="Starter model template to use")
+    init_parser.add_argument("--dataset", choices=DATASET_CHOICES, help="Starter dataset template to use")
     init_parser.add_argument("--output-root", help="Output root for generated config")
     init_parser.add_argument("--run-name", help="Run name for generated config")
-    init_parser.add_argument(
-        "--trainer", choices=TRAINER_CHOICES, help="Starter trainer template to use"
-    )
+    init_parser.add_argument("--trainer", choices=TRAINER_CHOICES, help="Starter trainer template to use")
     init_parser.add_argument(
         "--force",
         action="store_true",
@@ -313,11 +285,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _update_targets(
-    config: ComponentConfig
-    | ProjectConfig
-    | DataConfigBase
-    | SplitConfig
-    | DataLoaderConfig,
+    config: ComponentConfig | ProjectConfig | DataConfigBase | SplitConfig | DataLoaderConfig,
     old_prefix: str,
     new_prefix: str,
 ) -> None:
@@ -380,9 +348,7 @@ def init_project(args: argparse.Namespace) -> None:
     output_config = OutputConfig(root=output_root, run_name=run_name)
 
     # Build templates for the starter project
-    templates = _build_templates(
-        model_name, dataset_name, trainer_name, project_dir.name
-    )
+    templates = _build_templates(model_name, dataset_name, trainer_name, project_dir.name)
 
     model_spec = get_model_spec(model_name)
     dataset_spec = get_dataset_spec(dataset_name)

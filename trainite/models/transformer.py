@@ -31,18 +31,14 @@ class RotaryEmbedding(nn.Module):
     def __init__(self, dim: int, max_seq_len: int) -> None:
         super().__init__()
         if dim % 2 != 0:
-            raise ValueError(
-                f"RotaryEmbedding dimension (head_dim) must be even, got {dim}."
-            )
+            raise ValueError(f"RotaryEmbedding dimension (head_dim) must be even, got {dim}.")
         self.dim = dim
         self.max_seq_len = max_seq_len
         inv_freq = 1.0 / (10000.0 ** (torch.arange(0, dim, 2).float() / dim))
         self.register_buffer("inv_freq", inv_freq, persistent=False)
 
         # Precompute cos and sin buffers
-        cos, sin = self._compute_embeddings(
-            max_seq_len, device=inv_freq.device, dtype=torch.float32
-        )
+        cos, sin = self._compute_embeddings(max_seq_len, device=inv_freq.device, dtype=torch.float32)
         self.register_buffer("cos_cached", cos, persistent=False)
         self.register_buffer("sin_cached", sin, persistent=False)
 
@@ -56,15 +52,11 @@ class RotaryEmbedding(nn.Module):
         sin = emb.sin().unsqueeze(0).unsqueeze(0).to(dtype)
         return cos, sin
 
-    def forward(
-        self, x: torch.Tensor, seq_len: int
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor, seq_len: int) -> tuple[torch.Tensor, torch.Tensor]:
         if seq_len > self.max_seq_len:
             return self._compute_embeddings(seq_len, device=x.device, dtype=x.dtype)
 
-        return self.cos_cached[:, :, :seq_len].to(x.dtype), self.sin_cached[
-            :, :, :seq_len
-        ].to(x.dtype)
+        return self.cos_cached[:, :, :seq_len].to(x.dtype), self.sin_cached[:, :, :seq_len].to(x.dtype)
 
 
 def rotate_half(x: torch.Tensor) -> torch.Tensor:
@@ -140,9 +132,7 @@ class Attention(nn.Module):
 
 
 class TransformerBlock(nn.Module):
-    def __init__(
-        self, d_model: int, num_heads: int, feedforward_dim: int, dropout: float = 0.1
-    ) -> None:
+    def __init__(self, d_model: int, num_heads: int, feedforward_dim: int, dropout: float = 0.1) -> None:
         super().__init__()
         self.norm1 = nn.LayerNorm(d_model)
         self.attention = Attention(d_model, num_heads, dropout=dropout)
@@ -185,9 +175,7 @@ class TransformerModel(nn.Module):
     ) -> None:
         super().__init__()
         self.embedding = nn.Embedding(vocab_size, hidden_size, padding_idx=0)
-        self.rotary_emb = RotaryEmbedding(
-            dim=hidden_size // num_heads, max_seq_len=max_seq_len
-        )
+        self.rotary_emb = RotaryEmbedding(dim=hidden_size // num_heads, max_seq_len=max_seq_len)
         self.blocks = nn.ModuleList(
             [
                 TransformerBlock(
@@ -260,11 +248,7 @@ class TransformerModel(nn.Module):
         device = param.device if param is not None else "cpu"
 
         # left-pad sequences and flip back to (B, S) for processing
-        input_ids = (
-            pad_sequence(encoded, batch_first=True, padding_value=pad_id)
-            .flip(1)
-            .to(device)
-        )
+        input_ids = pad_sequence(encoded, batch_first=True, padding_value=pad_id).flip(1).to(device)
 
         generated = input_ids.clone()
         prompt_len = input_ids.size(1)
@@ -275,9 +259,7 @@ class TransformerModel(nn.Module):
             next_token = torch.argmax(next_token_logits, dim=-1, keepdim=True)
             if eos_id is not None:
                 eos_mask = generated[:, -1:].eq(eos_id)
-                next_token = torch.where(
-                    eos_mask, torch.tensor(eos_id, device=device), next_token
-                )
+                next_token = torch.where(eos_mask, torch.tensor(eos_id, device=device), next_token)
             generated = torch.cat([generated, next_token], dim=-1)
 
             if eos_id is not None and generated[:, -1].eq(eos_id).all():
@@ -298,9 +280,7 @@ class CausalLMCollateFn:
         ignore_index: int = -100,
     ) -> None:
         self.tokenizer = tokenizer
-        self.pad_token_id = (
-            pad_token_id if pad_token_id is not None else tokenizer.pad_token_id
-        )
+        self.pad_token_id = pad_token_id if pad_token_id is not None else tokenizer.pad_token_id
         self.ignore_index = ignore_index
 
     def __call__(self, batch: list[dict[str, str]]) -> dict[str, torch.Tensor]:
@@ -341,9 +321,7 @@ class CausalLMCollateFn:
             batch_first=True,
             padding_value=self.pad_token_id if self.pad_token_id is not None else 0,
         ).flip(1)
-        padded_labels = pad_sequence(
-            labels_list, batch_first=True, padding_value=self.ignore_index
-        ).flip(1)
+        padded_labels = pad_sequence(labels_list, batch_first=True, padding_value=self.ignore_index).flip(1)
 
         return {
             "input_ids": padded_input_ids,
@@ -352,9 +330,7 @@ class CausalLMCollateFn:
 
 
 class TransformerModelConfig(ComponentConfig):
-    target: str = Field(
-        default="trainite.models.transformer.TransformerModel", alias="_target_"
-    )
+    target: str = Field(default="trainite.models.transformer.TransformerModel", alias="_target_")
     hidden_size: int = Field(default=64, gt=0)
     num_layers: int = Field(default=2, gt=0)
     num_heads: int = Field(default=2, gt=0)

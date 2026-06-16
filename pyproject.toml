@@ -1,8 +1,19 @@
+[build-system]
+requires = ["hatchling>=1.24.2"]
+build-backend = "hatchling.build"
+
 [project]
 name = "trainite"
-version = "0.1.0"
-description = "Add your description here"
+authors = [
+    {name = "PyTorch-Ignite Team", email = "contact@pytorch-ignite.ai"},
+]
+description = "Model training toolkit with PyTorch-Ignite."
 readme = "README.md"
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
 requires-python = ">=3.10"
 dependencies = [
     "pydantic>=2",
@@ -12,16 +23,29 @@ dependencies = [
     "packaging>=26.2",
     "questionary>=2.1.1",
 ]
+dynamic = ["version"]
 
+[project.urls]
+Homepage = "https://pytorch-ignite.ai"
+Repository = "https://github.com/pytorch-ignite/trainite"
 
 [project.scripts]
 trainite = "trainite.cli:main"
+
+[tool.hatch.version]
+path = "trainite/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["trainite"]
+only-include = ["trainite"]
+artifacts = [
+  "*.typed",
+]
 
 [tool.uv]
 package = true
 
 [tool.pyrefly]
-
 project-excludes = [
     "**/venv/**",
     "**/.venv/**",
@@ -29,7 +53,6 @@ project-excludes = [
     "**/docs/**",
     "**/examples/**",
 ]
-
 preset = "basic"
 output-format = "full-text"
 
@@ -50,3 +73,83 @@ dev = [
     "pre-commit>=4.6.0",
     "pyrefly>=1.0.0",
 ]
+
+[tool.ruff]
+src = ["trainite", "examples", "tests"]
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".ipynb_checkpoints",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pyenv",
+    ".pytest_cache",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    ".vscode",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "site-packages",
+    "venv",
+    "assets",
+]
+line-length = 120
+indent-width = 4
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+ignore = ["E402", "E713", "E721", "E722", "E203", "E231", "F403", "F841"]
+fixable = ["ALL"]
+unfixable = []
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.lint.isort]
+known-third-party = ["clearml", "dill", "matplotlib", "numpy", "pkg_resources", "pytest", "requests", "setuptools", "skimage", "sklearn", "torch", "torchvision"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401", ]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = false
+docstring-code-line-length = "dynamic"
+
+[tool.black]
+line-length = 120
+target-version = ['py311', 'py313']
+include = '\.pyi?$'
+exclude = '''
+(
+  /(
+      \.eggs
+    | \.git
+    | \.hg
+    | \.mypy_cache
+    | \.tox
+    | \.venv
+    | _build
+    | buck-out
+    | build
+    | dist
+    | assets
+  )/
+  | foo.py
+)
+'''
+addopts = "--color=yes"

@@ -54,9 +54,7 @@ MODEL_SPECS = {
             ("trainite.models", "models"),
             ("trainite.config.base", "config"),
         ],
-        readme_template_path=Path(
-            "trainite/templates/components/models/transformer.md"
-        ),
+        readme_template_path=Path("trainite/templates/components/models/transformer.md"),
     ),
 }
 
@@ -73,9 +71,7 @@ DATASET_SPECS = {
             ("trainite.datasets", "datasets"),
             ("trainite.config.base", "config"),
         ],
-        readme_template_path=Path(
-            "trainite/templates/components/datasets/string_reverse.md"
-        ),
+        readme_template_path=Path("trainite/templates/components/datasets/string_reverse.md"),
     ),
 }
 
@@ -89,9 +85,7 @@ TRAINER_SPECS = {
             ("trainite.utils", "utils"),
             ("trainite.config.base", "config"),
         ],
-        readme_template_path=Path(
-            "trainite/templates/components/trainers/pretrainer.md"
-        ),
+        readme_template_path=Path("trainite/templates/components/trainers/pretrainer.md"),
     ),
 }
 

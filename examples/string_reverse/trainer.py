@@ -55,14 +55,10 @@ class PreTrainer:
         self.device: str | torch.device = device or resolved_device
         self.epochs: int = epochs or config.trainer.epochs
         self.log_every_steps: int = log_every_steps or config.trainer.log_every_steps
-        self.grad_clip_norm: float | None = grad_clip_norm or getattr(
-            config.trainer, "grad_clip_norm", None
-        )
+        self.grad_clip_norm: float | None = grad_clip_norm or getattr(config.trainer, "grad_clip_norm", None)
         self.set_loaders(config, train_loader, val_loader, test_loader)
         if self.train_loader is None:
-            raise ValueError(
-                "At least a training loader must be provided either directly or via config"
-            )
+            raise ValueError("At least a training loader must be provided either directly or via config")
         train_dataset = self.train_loader.dataset
         # Handle Subset (from random_split) which wraps the original dataset
         if isinstance(train_dataset, torch.utils.data.Subset):
@@ -81,14 +77,10 @@ class PreTrainer:
                 )
             self.vocab_size = configured_vocab_size
 
-        self.model: nn.Module = model or instantiate(
-            config.model, vocab_size=self.vocab_size
-        )
+        self.model: nn.Module = model or instantiate(config.model, vocab_size=self.vocab_size)
         self.model.to(self.device)
         self.loss_fn: nn.CrossEntropyLoss = nn.CrossEntropyLoss()
-        self.optimizer: torch.optim.Optimizer = instantiate(
-            config.optimizer, params=self.model.parameters()
-        )
+        self.optimizer: torch.optim.Optimizer = instantiate(config.optimizer, params=self.model.parameters())
         self.lr: float = lr or config.optimizer.lr
         self.total_iters: int = len(self.train_loader) * self.epochs
         self.run_dir: Path | None = None
@@ -124,15 +116,11 @@ class PreTrainer:
         self, data_config: DataConfig
     ) -> tuple[DataLoader, DataLoader | None, DataLoader | None]:
         if data_config.dataset is None:
-            raise ValueError(
-                "dataset must be provided in data_config for automatic splitting"
-            )
+            raise ValueError("dataset must be provided in data_config for automatic splitting")
         dataset = instantiate(data_config.dataset)
         total_len = len(dataset)
 
-        train_ratio = (
-            data_config.train_ratio if data_config.train_ratio is not None else 1.0
-        )
+        train_ratio = data_config.train_ratio if data_config.train_ratio is not None else 1.0
         val_ratio = data_config.val_ratio if data_config.val_ratio is not None else 0.0
 
         if train_ratio <= 0.0 or val_ratio < 0:
@@ -141,9 +129,7 @@ class PreTrainer:
             )
 
         if train_ratio + val_ratio > 1.0:
-            raise ValueError(
-                f"Sum of train_ratio ({train_ratio}) and val_ratio ({val_ratio}) exceeds 1.0"
-            )
+            raise ValueError(f"Sum of train_ratio ({train_ratio}) and val_ratio ({val_ratio}) exceeds 1.0")
 
         train_len = int(total_len * train_ratio)
         val_len = int(total_len * val_ratio)
@@ -158,16 +144,8 @@ class PreTrainer:
         dl_config = data_config.dataloader or DataLoaderConfig()
 
         train_loader = self._create_dataloader(train_ds, dl_config, shuffle=True)
-        val_loader = (
-            self._create_dataloader(val_ds, dl_config, shuffle=False)
-            if val_len > 0
-            else None
-        )
-        test_loader = (
-            self._create_dataloader(test_ds, dl_config, shuffle=False)
-            if test_len > 0
-            else None
-        )
+        val_loader = self._create_dataloader(val_ds, dl_config, shuffle=False) if val_len > 0 else None
+        test_loader = self._create_dataloader(test_ds, dl_config, shuffle=False) if test_len > 0 else None
 
         return train_loader, val_loader, test_loader
 
@@ -191,9 +169,7 @@ class PreTrainer:
                     config.data.train_ratio,
                     config.data.val_ratio,
                 )
-                t_loader, v_loader, te_loader = self._build_loaders_from_ratios(
-                    config.data
-                )
+                t_loader, v_loader, te_loader = self._build_loaders_from_ratios(config.data)
                 train_loader = t_loader
                 if val_loader is None:
                     val_loader = v_loader
@@ -217,9 +193,7 @@ class PreTrainer:
         run_dir.mkdir(parents=True, exist_ok=True)
         return run_dir
 
-    def _exact_accuracy_transform(
-        self, output: dict[str, torch.Tensor]
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    def _exact_accuracy_transform(self, output: dict[str, torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
         logits = output["logits"]
         targets = output["targets"]
 
@@ -234,17 +208,13 @@ class PreTrainer:
 
         return y_pred, y
 
-    def _flatten_loss(
-        self, output: dict[str, torch.Tensor]
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    def _flatten_loss(self, output: dict[str, torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
         logits = output["logits"].reshape(-1, output["logits"].size(-1))
         targets = output["targets"].reshape(-1)
         mask = targets != self.loss_fn.ignore_index
         return logits[mask], targets[mask]
 
-    def _train_step(
-        self, engine: Engine, batch: dict[str, torch.Tensor]
-    ) -> dict[str, torch.Tensor]:
+    def _train_step(self, engine: Engine, batch: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
         self.model.train()
         inputs = batch["input_ids"].to(self.device)
         targets = batch["labels"].to(self.device)
@@ -265,9 +235,7 @@ class PreTrainer:
         }
 
     @torch.no_grad()
-    def _eval_step(
-        self, engine: Engine, batch: dict[str, torch.Tensor]
-    ) -> dict[str, torch.Tensor]:
+    def _eval_step(self, engine: Engine, batch: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
         self.model.eval()
         inputs = batch["input_ids"].to(self.device)
         targets = batch["labels"].to(self.device)
@@ -275,9 +243,7 @@ class PreTrainer:
         return {"logits": logits, "targets": targets}
 
     def _attach_metrics(self) -> None:
-        RunningAverage(output_transform=lambda output: output["loss"]).attach(
-            self.engine, "loss"
-        )
+        RunningAverage(output_transform=lambda output: output["loss"]).attach(self.engine, "loss")
 
         train_loss = Loss(self.loss_fn, output_transform=self._flatten_loss)
         train_accuracy = Accuracy(output_transform=self._exact_accuracy_transform)
@@ -309,9 +275,7 @@ class PreTrainer:
             filepath=str(self.run_dir / "output.log") if self.run_dir else None,
             reset=True,
         )
-        self.train_fb_logger: FBResearchLogger = FBResearchLogger(
-            logger=self.logger, show_output=True
-        )
+        self.train_fb_logger: FBResearchLogger = FBResearchLogger(logger=self.logger, show_output=True)
         self.train_fb_logger.attach(
             self.engine,
             name="Train",
@@ -458,16 +422,12 @@ class PreTrainer:
             return
 
         # Load best model if available
-        checkpoint_handler = self.handlers.get("checkpoint_best") or self.handlers.get(
-            "checkpoint_last"
-        )
+        checkpoint_handler = self.handlers.get("checkpoint_best") or self.handlers.get("checkpoint_last")
         if checkpoint_handler and checkpoint_handler.last_checkpoint:
             checkpoint_path = checkpoint_handler.last_checkpoint
 
             self.logger.info("Loading best model for testing from %s", checkpoint_path)
-            checkpoint = torch.load(
-                checkpoint_path, map_location=self.device, weights_only=True
-            )
+            checkpoint = torch.load(checkpoint_path, map_location=self.device, weights_only=True)
             self.model.load_state_dict(checkpoint["model"])
 
         self.logger.info("Running testing...")
@@ -487,9 +447,7 @@ class PreTrainer:
             self._attach_handlers()
 
         self.logger.info("starting run in %s", self.run_dir)
-        config_data = self.config.model_dump(
-            by_alias=True, polymorphic_serialization=True
-        )
+        config_data = self.config.model_dump(by_alias=True, polymorphic_serialization=True)
         if "tensorboard" in self.handlers:
             self.handlers["tensorboard"].writer.add_text("config", str(config_data))
 
