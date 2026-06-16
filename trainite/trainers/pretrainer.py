@@ -369,15 +369,21 @@ class PreTrainer:
         self.engine.add_event_handler(Events.EPOCH_COMPLETED, self._run_evaluations)
         if self.inference_every_epochs is not None:
             self.engine.add_event_handler(
-                Events.EPOCH_COMPLETED, self._log_inference, self.train_loader, "Train"
+                Events.EPOCH_COMPLETED(every=self.inference_every_epochs),
+                self._log_inference,
+                self.train_loader,
+                "Train",
             )
             if self.val_loader is not None:
                 self.engine.add_event_handler(
-                    Events.EPOCH_COMPLETED, self._log_inference, self.val_loader, "Val"
+                    Events.EPOCH_COMPLETED(every=self.inference_every_epochs),
+                    self._log_inference,
+                    self.val_loader,
+                    "Val",
                 )
             if self.test_loader is not None:
                 self.engine.add_event_handler(
-                    Events.EPOCH_COMPLETED,
+                    Events.EPOCH_COMPLETED(every=self.inference_every_epochs),
                     self._log_inference,
                     self.test_loader,
                     "Test",
@@ -562,12 +568,6 @@ class PreTrainer:
         return inference_tokenizer
 
     def _log_inference(self, engine: Engine, loader: DataLoader, name: str) -> None:
-        if (
-            not self.inference_every_epochs
-            or engine.state.epoch % self.inference_every_epochs != 0
-        ):
-            return
-
         tokenizer = self.inference_tokenizer
         if tokenizer is None:
             return
@@ -606,24 +606,32 @@ class PreTrainer:
 
         if "tensorboard" in self.handlers:
             tb_writer = self.handlers["tensorboard"].writer
-            tb_table = [
-                "| Sample | Prompt | Target | Prediction |",
-                "|---|---|---|---|",
-            ]
+            lines = []
             for idx in range(num_samples):
-                prompt_escaped = prompts[idx].replace("|", "\\|").replace("\n", "<br>")
-                target_escaped = targets[idx].replace("|", "\\|").replace("\n", "<br>")
-                pred_escaped = (
-                    decoded_strs[idx].replace("|", "\\|").replace("\n", "<br>")
+                prompt = prompts[idx].strip() or "(empty)"
+                target = targets[idx].strip() or "(empty)"
+                pred = decoded_strs[idx].strip() or "(empty)"
+                prompt = (
+                    prompt.replace("&", "&amp;")
+                    .replace("<", "&lt;")
+                    .replace(">", "&gt;")
                 )
-                tb_table.append(
-                    f"| {idx + 1} | {prompt_escaped} | {target_escaped} | {pred_escaped} |"
+                target = (
+                    target.replace("&", "&amp;")
+                    .replace("<", "&lt;")
+                    .replace(">", "&gt;")
                 )
+                pred = (
+                    pred.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                )
+                lines.append(f"Sample {idx + 1}")
+                lines.append(f"  Prompt:     {prompt}")
+                lines.append(f"  Target:     {target}")
+                lines.append(f"  Prediction: {pred}")
+                lines.append("")
             name_map = {"Train": "training", "Val": "validation", "Test": "testing"}
             tb_tag = f"inference/{name_map.get(name, name.lower())}"
-            tb_writer.add_text(
-                tb_tag, "\n".join(tb_table), global_step=engine.state.epoch
-            )
+            tb_writer.add_text(tb_tag, "\n".join(lines), global_step=engine.state.epoch)
 
     def test(self, test_loader: DataLoader | None = None) -> None:
         loader = test_loader or self.test_loader
