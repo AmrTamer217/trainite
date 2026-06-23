@@ -1,6 +1,7 @@
 import random
 import string
 import warnings
+from typing import Any
 
 import torch
 from pydantic import ConfigDict, Field, model_validator
@@ -19,83 +20,12 @@ CHARSET_PRESETS = {
 }
 
 
-class CharTokenizer:
-    """A simple character-level tokenizer with a hardcoded universal vocabulary.
-
-    Maps each character in UNIVERSAL_VOCAB to a unique integer ID.
-    ID 0 is reserved as the <PAD> token.
-    ID 1 is reserved as the <BOS> token.
-    ID 2 is reserved as the <SEP> token.
-    ID 3 is reserved as the <EOS> token.
-    ID 4 is reserved as the <UNK> token.
-    """
-
-    def __init__(self) -> None:
-        self.pad_token_id = 0
-        self.bos_token_id = 1
-        self.sep_token_id = 2
-        self.eos_token_id = 3
-        self.unk_token_id = 4
-
-        self.char_to_id: dict[str, int] = {c: i + 5 for i, c in enumerate(UNIVERSAL_VOCAB)}
-        self.id_to_char: dict[int, str] = {i + 5: c for i, c in enumerate(UNIVERSAL_VOCAB)}
-
-        self.special_tokens: dict[int, str] = {
-            self.pad_token_id: "<PAD>",
-            self.bos_token_id: "<BOS>",
-            self.sep_token_id: "<SEP>",
-            self.eos_token_id: "<EOS>",
-            self.unk_token_id: "<UNK>",
-        }
-
-        for k, v in self.special_tokens.items():
-            self.id_to_char[k] = v
-
-    @property
-    def vocab_size(self) -> int:
-        """Number of unique tokens in the vocabulary (includes special tokens)."""
-        return len(UNIVERSAL_VOCAB) + len(self.special_tokens)
-
-    def encode(self, text: str) -> list[int]:
-        """Convert a string to a list of token IDs, mapping unrecognized characters to UNK."""
-        return [self.char_to_id.get(c, self.unk_token_id) for c in text]
-
-    def decode(
-        self,
-        ids: list[int] | torch.Tensor,
-        skip_special_tokens: bool = True,
-        ignore_index: int = -100,
-    ) -> str:
-        """Convert a list of token IDs back to a string.
-
-        Args:
-            ids: List or tensor of token IDs to decode.
-            skip_special_tokens: If True, skips printing special tokens like <bos> and <eos>.
-            ignore_index: The token ID used for loss masking. These are silently ignored.
-        """
-        if isinstance(ids, torch.Tensor):
-            ids = ids.tolist()
-
-        decoded_chars = []
-        for i in ids:
-            if i == ignore_index:
-                continue
-            if i in self.special_tokens:
-                if not skip_special_tokens or i == self.unk_token_id:
-                    decoded_chars.append(self.special_tokens[i])
-            elif i in self.id_to_char:
-                decoded_chars.append(self.id_to_char[i])
-            else:
-                decoded_chars.append(self.special_tokens[self.unk_token_id])
-        return "".join(decoded_chars)
-
-
 class StringReverseDataset(Dataset):
     """Generates unique random strings and their reversals.
 
     Each sample is returned as a dictionary containing:
-        - 'source_text': the original random string
-        - 'target_text': the reversed string
+        - 'source': the original random string
+        - 'target': the reversed string
     """
 
     def __init__(
@@ -107,9 +37,6 @@ class StringReverseDataset(Dataset):
         charset: str | None = None,
         seed: int = 42,
     ) -> None:
-        self.tokenizer: CharTokenizer = CharTokenizer()
-        self.vocab_size = self.tokenizer.vocab_size
-
         if charset is None:
             chars = UNIVERSAL_VOCAB
         elif charset in CHARSET_PRESETS:
@@ -117,10 +44,10 @@ class StringReverseDataset(Dataset):
         else:
             chars = charset
 
-        self.valid_token_ids = [self.tokenizer.char_to_id[c] for c in chars if c in self.tokenizer.char_to_id]
+        self.chars = chars
 
-        if not self.valid_token_ids:
-            raise ValueError(f"Charset '{charset}' resulted in empty token IDs.")
+        if not self.chars:
+            raise ValueError(f"Charset '{charset}' resulted in empty characters.")
 
         if seq_len is not None and (min_seq_len is not None or max_seq_len is not None):
             raise ValueError("Cannot specify both seq_len and min_seq_len/max_seq_len.")
@@ -132,16 +59,33 @@ class StringReverseDataset(Dataset):
         else:
             lengths = list(range(min_seq_len, max_seq_len + 1))
 
-        rng = random.Random(seed)
-        vocab_size = len(self.valid_token_ids)
+        num_chars = len(self.chars)
 
-        self.source_texts = []
-        self.target_texts = []
+        self.source_texts, self.target_texts = self.generate_unique_sequences(
+            lengths=lengths,
+            num_chars=num_chars,
+            per_seq_size=per_seq_size,
+            seed=seed,
+        )
 
+        # Shuffle so variable-length samples are evenly distributed across batches
+        final_shuffle_gen = random.Random(seed)
+        shuffle_indices = list(range(len(self.source_texts)))
+        final_shuffle_gen.shuffle(shuffle_indices)
+
+        self.source_texts = [self.source_texts[i] for i in shuffle_indices]
+        self.target_texts = [self.target_texts[i] for i in shuffle_indices]
+
+    def generate_unique_sequences(
+        self, lengths: list[int], num_chars: int, per_seq_size: int, seed: int = 42
+    ) -> tuple[list[str], list[str]]:
         # Generate per_seq_size unique sequences for each length bucket
+        source_texts = []
+        target_texts = []
+        rng = random.Random(seed)
         for length in lengths:
             unique_sequences: set[str] = set()
-            max_possible_combinations = vocab_size**length
+            max_possible_combinations = num_chars**length
             target = min(per_seq_size, max_possible_combinations)
 
             # Safety cap to avoid infinite loops when the space is small
@@ -149,7 +93,7 @@ class StringReverseDataset(Dataset):
             max_attempts = target * 20
 
             while len(unique_sequences) < target and attempts < max_attempts:
-                seq = "".join(rng.choices(chars, k=length))
+                seq = "".join(rng.choices(self.chars, k=length))
                 unique_sequences.add(seq)
                 attempts += 1
 
@@ -164,33 +108,69 @@ class StringReverseDataset(Dataset):
             # Pack each unique sequence into source and target formats
             for seq in unique_sequences:
                 reversed_seq = seq[::-1]
-                self.source_texts.append(seq)
-                self.target_texts.append(reversed_seq)
+                source_texts.append(seq)
+                target_texts.append(reversed_seq)
 
-        # Shuffle so variable-length samples are evenly distributed across batches
-        final_shuffle_gen = random.Random(seed)
-        shuffle_indices = list(range(len(self.source_texts)))
-        final_shuffle_gen.shuffle(shuffle_indices)
-
-        self.source_texts = [self.source_texts[i] for i in shuffle_indices]
-        self.target_texts = [self.target_texts[i] for i in shuffle_indices]
+        return source_texts, target_texts
 
     def __len__(self) -> int:
         return len(self.source_texts)
 
     def __getitem__(self, index: int) -> dict[str, str]:
         return {
-            "source_text": self.source_texts[index],
-            "target_text": self.target_texts[index],
+            "source": self.source_texts[index],
+            "target": self.target_texts[index],
         }
 
-    def decode(
-        self,
-        ids: torch.Tensor,
-        skip_special_tokens: bool = True,
-        ignore_index: int = -100,
-    ) -> str:
-        return self.tokenizer.decode(ids, skip_special_tokens=skip_special_tokens, ignore_index=ignore_index)
+
+class PromptCompletionTransform:
+    def __init__(self, tokenizer: Any, ignore_index: int = -100) -> None:
+        self.tokenizer = tokenizer
+        self.ignore_index = ignore_index
+
+    def build_prompt(self, sample: dict[str, str]) -> list[int]:
+        """Token ids for the generation prompt: [bos] + source + [sep] (no target)."""
+        bos = self.tokenizer.bos_token_id
+        sep = self.tokenizer.sep_token_id
+        source_tokens = self.tokenizer(sample["source"], add_special_tokens=False)["input_ids"]
+        return [bos] + source_tokens + [sep]
+
+    def __call__(self, sample: dict[str, str]) -> dict[str, torch.Tensor]:
+        source = sample["source"]
+        target = sample["target"]
+
+        eos = self.tokenizer.eos_token_id
+
+        prompt_ids = self.build_prompt(sample)
+        target_tokens = self.tokenizer(target, add_special_tokens=False)["input_ids"]
+
+        combined_input_ids = prompt_ids + target_tokens + [eos]
+
+        input_ids = torch.tensor(combined_input_ids[:-1], dtype=torch.long)
+        labels = torch.tensor(combined_input_ids[1:], dtype=torch.long)
+
+        # Mask the prompt portion of the (shifted) labels. labels = combined[1:],
+        # so the prompt spans len(prompt_ids) - 1 leading positions.
+        labels[: len(prompt_ids) - 1] = self.ignore_index
+
+        attention_mask = torch.ones(len(input_ids), dtype=torch.long)
+
+        return {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "labels": labels,
+            "source": source,
+            "target": target,
+        }
+
+
+class PromptCompletionTransformConfig(ComponentConfig):
+    model_config = ConfigDict(validate_assignment=True)
+    target: str = Field(
+        default="trainite.datasets.string_reverse.PromptCompletionTransform",
+        alias="_target_",
+    )
+    ignore_index: int = -100
 
 
 class StringReverseDatasetConfig(ComponentConfig):
@@ -223,6 +203,7 @@ class StringReverseDataConfig(DataWithAutoSplit):
     dataset: StringReverseDatasetConfig | None = Field(  # type: ignore[assignment]
         default_factory=StringReverseDatasetConfig
     )
+    transform: PromptCompletionTransformConfig | None = Field(default_factory=PromptCompletionTransformConfig)
     test_ratio: float = 0.1
     val_ratio: float = 0.1
     dataloader: DataLoaderConfig = Field(

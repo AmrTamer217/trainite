@@ -1,30 +1,12 @@
 import math
-from typing import Protocol
+from typing import Any
 
 import torch
+from pydantic import Field
 from torch import nn
 from torch.nn.utils.rnn import pad_sequence
-from pydantic import Field
 
 from trainite.config.base import ComponentConfig
-
-
-class Tokenizer(Protocol):
-    @property
-    def bos_token_id(self) -> int | None: ...
-
-    @property
-    def eos_token_id(self) -> int | None: ...
-
-    @property
-    def sep_token_id(self) -> int | None: ...
-
-    @property
-    def pad_token_id(self) -> int | None: ...
-
-    def encode(self, text: str) -> list[int]: ...
-
-    def decode(self, ids: list[int]) -> str: ...
 
 
 class RotaryEmbedding(nn.Module):
@@ -164,17 +146,19 @@ class TransformerBlock(nn.Module):
 class TransformerModel(nn.Module):
     def __init__(
         self,
-        vocab_size: int = 32,
+        vocab_size: int = 100,
         hidden_size: int = 64,
         num_layers: int = 2,
         num_heads: int = 2,
         feedforward_dim: int = 128,
         dropout: float = 0.1,
         max_seq_len: int = 128,
-        **kwargs,
+        pad_token_id: int | None = None,
+        **kwargs: Any,
     ) -> None:
         super().__init__()
-        self.embedding = nn.Embedding(vocab_size, hidden_size, padding_idx=0)
+        pad_token_id = pad_token_id if pad_token_id is not None else 0
+        self.embedding = nn.Embedding(vocab_size, hidden_size, padding_idx=pad_token_id)
         self.rotary_emb = RotaryEmbedding(dim=hidden_size // num_heads, max_seq_len=max_seq_len)
         self.blocks = nn.ModuleList(
             [
@@ -190,84 +174,20 @@ class TransformerModel(nn.Module):
         self.proj = nn.Linear(hidden_size, vocab_size)
         self.norm = nn.LayerNorm(hidden_size)
 
-    def forward(self, input_ids: torch.Tensor) -> torch.Tensor:
+    def forward(self, input_ids: torch.Tensor, attention_mask: torch.Tensor | None = None) -> torch.Tensor:
         B, S = input_ids.shape
         x = self.embedding(input_ids) * math.sqrt(self.embedding.embedding_dim)
         cos, sin = self.rotary_emb(x, seq_len=S)
-        if (input_ids == self.embedding.padding_idx).any():
+        padding_mask: torch.Tensor | None = None
+        if attention_mask is not None:
+            if not attention_mask.all().item():
+                padding_mask = attention_mask.reshape(B, 1, 1, S).to(torch.bool)
+        elif (input_ids == self.embedding.padding_idx).any().item():
             padding_mask = (input_ids != self.embedding.padding_idx).reshape(B, 1, 1, S)
-        else:
-            padding_mask = None
         for block in self.blocks:
             x = block(x, cos, sin, padding_mask=padding_mask)
         x = self.norm(x)
         return self.proj(x)
-
-    @torch.no_grad()
-    def generate(
-        self,
-        prompts: list[str],
-        max_new_tokens: int,
-        tokenizer: Tokenizer,
-        bos_token_id: int | None = None,
-        sep_token_id: int | None = None,
-        eos_token_id: int | None = None,
-        pad_token_id: int | None = None,
-    ) -> list[str]:
-        """Generate text from a raw text prompts.
-
-        Args:
-            prompt: Prompt text (list of str).
-            max_new_tokens: Maximum number of new tokens to generate.
-            tokenizer: Tokenizer to use for encoding/decoding.
-            bos_token_id: Optional token ID that signals beginning-of-sequence.
-            sep_token_id: Optional token ID that signals separation between prompt and generated text.
-            eos_token_id: Optional token ID that signals end-of-sequence.
-            pad_token_id: Optional token ID used for padding sequences.
-
-        Returns:
-            The generated text (str or list of str).
-        """
-        self.eval()
-        bos_id = bos_token_id or getattr(tokenizer, "bos_token_id", None)
-        sep_id = sep_token_id or getattr(tokenizer, "sep_token_id", None)
-        eos_id = eos_token_id or getattr(tokenizer, "eos_token_id", None)
-        pad_id = pad_token_id or getattr(tokenizer, "pad_token_id", 0)
-        if bos_id is None or eos_id is None or sep_id is None:
-            raise ValueError(
-                "Tokenizer must have bos_token_id, sep_token_id, and eos_token_id defined, or they must be provided explicitly to the generate method."
-            )
-
-        encoded = []
-        for text in prompts:
-            ids = tokenizer.encode(text)
-            ids = torch.tensor([bos_id] + ids + [sep_id], dtype=torch.long)
-            encoded.append(ids.flip(0))
-
-        param = next(self.parameters(), None)
-        device = param.device if param is not None else "cpu"
-
-        # left-pad sequences and flip back to (B, S) for processing
-        input_ids = pad_sequence(encoded, batch_first=True, padding_value=pad_id).flip(1).to(device)
-
-        generated = input_ids.clone()
-        prompt_len = input_ids.size(1)
-
-        for _ in range(max_new_tokens):
-            logits = self(generated)
-            next_token_logits = logits[:, -1, :]
-            next_token = torch.argmax(next_token_logits, dim=-1, keepdim=True)
-            if eos_id is not None:
-                eos_mask = generated[:, -1:].eq(eos_id)
-                next_token = torch.where(eos_mask, torch.tensor(eos_id, device=device), next_token)
-            generated = torch.cat([generated, next_token], dim=-1)
-
-            if eos_id is not None and generated[:, -1].eq(eos_id).all():
-                break
-
-        new_tokens = generated[:, prompt_len:].tolist()
-        decoded = [tokenizer.decode(tokens) for tokens in new_tokens]
-        return decoded
 
 
 class CausalLMCollateFn:
@@ -275,7 +195,7 @@ class CausalLMCollateFn:
 
     def __init__(
         self,
-        tokenizer: Tokenizer,
+        tokenizer: Any,
         pad_token_id: int | None = None,
         ignore_index: int = -100,
     ) -> None:
@@ -283,48 +203,34 @@ class CausalLMCollateFn:
         self.pad_token_id = pad_token_id if pad_token_id is not None else tokenizer.pad_token_id
         self.ignore_index = ignore_index
 
-    def __call__(self, batch: list[dict[str, str]]) -> dict[str, torch.Tensor]:
+    def __call__(self, batch: list[dict[str, torch.tensor]]) -> dict[str, torch.Tensor]:
         input_ids_list = []
+        attention_mask_list = []
         labels_list = []
         for item in batch:
-            source_text = item["source_text"]
-            target_text = item["target_text"]
+            input_ids = item.get("input_ids")
+            labels = item.get("labels")
 
-            # Tokenize using the tokenizer
-            source_ids = self.tokenizer.encode(source_text)
-            target_ids = self.tokenizer.encode(target_text)
-
-            # Format sequence: <bos> source <eos> target <eos>
-            bos_t = torch.tensor([self.tokenizer.bos_token_id])
-            eos_t = torch.tensor([self.tokenizer.eos_token_id])
-            sep_t = torch.tensor([self.tokenizer.sep_token_id])
-            src_t = torch.tensor(source_ids)
-            tgt_t = torch.tensor(target_ids)
-
-            src = torch.cat([bos_t, src_t, sep_t])
-            tgt = torch.cat([tgt_t, eos_t])
-
-            full_seq = torch.cat([src, tgt])
-
-            input_ids = full_seq[:-1]
-            labels = full_seq[1:].clone()
-
-            # Mask the prompt portion in target labels
-            labels[: len(src) - 1] = self.ignore_index
+            if input_ids is None or labels is None:
+                raise KeyError(f"Dataset item must contain 'input_ids' and 'labels' keys. Got: {list(item.keys())}")
+            attention_mask = item.get("attention_mask", torch.tensor([1] * len(input_ids)))
 
             # We flip the sequences to have padding on the left, which allows us to use causal masking without modification
             input_ids_list.append(input_ids.flip(0))
             labels_list.append(labels.flip(0))
+            attention_mask_list.append(attention_mask.flip(0))
 
         padded_input_ids = pad_sequence(
             input_ids_list,
             batch_first=True,
             padding_value=self.pad_token_id if self.pad_token_id is not None else 0,
         ).flip(1)
+        padded_attention_mask = pad_sequence(attention_mask_list, batch_first=True, padding_value=0).flip(1)
         padded_labels = pad_sequence(labels_list, batch_first=True, padding_value=self.ignore_index).flip(1)
 
         return {
             "input_ids": padded_input_ids,
+            "attention_mask": padded_attention_mask,
             "labels": padded_labels,
         }
 

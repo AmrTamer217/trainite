@@ -20,17 +20,13 @@ from trainite.config import (
     OutputConfig,
     SplitConfig,
 )
-from trainite.config.registry import (
-    REGISTRY,
-    get_dataset_spec,
-    get_model_spec,
-    get_trainer_spec,
-)
-from trainite.utils import dump_config
+from trainite.config.registry import REGISTRY, get_dataset_spec, get_model_spec, get_preprocessor_spec, get_trainer_spec
+from trainite.shared.utils import dump_config
 
 
 class ProjectConfig(BaseModel):
     model_config = ConfigDict(validate_assignment=True)
+    preprocessor: ComponentConfig | None = None
     model: ComponentConfig
     optimizer: OptimizerConfig = Field(default_factory=OptimizerConfig)
     data: DataConfigBase | DataWithAutoSplit
@@ -185,9 +181,14 @@ def _build_templates(model_name: str, dataset_name: str, trainer_name: str, proj
     model_spec = get_model_spec(model_name)
     dataset_spec = get_dataset_spec(dataset_name)
     trainer_spec = get_trainer_spec(trainer_name)
+    preprocessor_spec = (
+        get_preprocessor_spec(dataset_spec.preprocessor_spec_name) if dataset_spec.preprocessor_spec_name else None
+    )
+    specs = [model_spec, dataset_spec, trainer_spec, preprocessor_spec]
     spec_deps = set()
-    for spec in [model_spec, dataset_spec, trainer_spec]:
-        spec_deps.update(spec.dependencies)
+    for spec in specs:
+        if spec is not None:
+            spec_deps.update(spec.dependencies)
     required_deps, other_deps = parse_dependencies(PROJECT_ROOT / "pyproject.toml")
     final_deps = set(required_deps.values())
     for dep in spec_deps:
@@ -225,14 +226,43 @@ def _build_templates(model_name: str, dataset_name: str, trainer_name: str, proj
         ),
     ]
 
+    if preprocessor_spec:
+        trainer_replacements.extend(
+            [
+                ("preprocessor: ComponentConfig", f"preprocessor: {preprocessor_spec.config_cls.__name__}"),
+                (
+                    "# __PREPROCESSOR_IMPORT__",
+                    f"from preprocessors.{preprocessor_spec.name} import {preprocessor_spec.config_cls.__name__}",
+                ),
+            ]
+        )
+    else:
+        trainer_replacements.extend(
+            [
+                (
+                    "# __PREPROCESSOR_IMPORT__",
+                    "",
+                ),
+            ]
+        )
+
     main_replacements = [
         (
             "from trainite.trainers.pretrainer import PreTrainer, ProjectConfig",
             f"from trainer import {trainer_spec.implementation_symbol}, ProjectConfig",
         ),
-        ("trainite.utils", "utils"),
-        ("PreTrainer(config)", f"{trainer_spec.implementation_symbol}(config)"),
+        ("trainite.shared.utils", "utils"),
+        ("PreTrainer(", f"{trainer_spec.implementation_symbol}("),
+        (
+            "from trainite.datasets.transformed import TransformedDataset",
+            "from datasets.transformed import TransformedDataset",
+        ),
     ]
+
+    preprocessor_name = preprocessor_spec.name if preprocessor_spec else "None"
+    preprocessor_docs = ""
+    if preprocessor_spec and preprocessor_spec.readme_template_path:
+        preprocessor_docs = _render_template(PROJECT_ROOT / preprocessor_spec.readme_template_path)
 
     readme_replacements = [
         ("{{project_name}}", project_name),
@@ -242,9 +272,11 @@ def _build_templates(model_name: str, dataset_name: str, trainer_name: str, proj
         ("{{dataset_docs}}", dataset_docs),
         ("{{trainer_name}}", trainer_spec.name),
         ("{{trainer_docs}}", trainer_docs),
+        ("{{preprocessor_name}}", preprocessor_name),
+        ("{{preprocessor_docs}}", preprocessor_docs),
     ]
 
-    return {
+    templates = {
         f"models/{model_spec.name}.py": _render_template(
             PROJECT_ROOT / model_spec.implementation_path,
             model_spec.template_replacements,
@@ -253,13 +285,27 @@ def _build_templates(model_name: str, dataset_name: str, trainer_name: str, proj
             PROJECT_ROOT / dataset_spec.implementation_path,
             dataset_spec.template_replacements,
         ),
-        "trainer.py": _render_template(PROJECT_ROOT / trainer_spec.implementation_path, trainer_replacements),
-        "utils.py": _render_template(PROJECT_ROOT / "trainite/utils.py"),
-        "main.py": _render_template(PROJECT_ROOT / "trainite/main.py", main_replacements),
-        "README.md": _render_template(PROJECT_ROOT / "trainite/templates/project/README.md", readme_replacements),
-        "config.py": _render_template(PROJECT_ROOT / "trainite/config/base.py"),
-        "pyproject.toml": generate_uv_project(name=project_name, version="0.1.0", dependencies=sorted(final_deps)),
+        "datasets/transformed.py": _render_template(PROJECT_ROOT / "trainite/datasets/transformed.py"),
     }
+
+    if preprocessor_spec:
+        templates[f"preprocessors/{preprocessor_spec.name}.py"] = _render_template(
+            PROJECT_ROOT / preprocessor_spec.implementation_path,
+            preprocessor_spec.template_replacements,
+        )
+
+    templates.update(
+        {
+            "trainer.py": _render_template(PROJECT_ROOT / trainer_spec.implementation_path, trainer_replacements),
+            "utils.py": _render_template(PROJECT_ROOT / "trainite/shared/utils.py"),
+            "main.py": _render_template(PROJECT_ROOT / "trainite/shared/main.py", main_replacements),
+            "README.md": _render_template(PROJECT_ROOT / "trainite/templates/project/README.md", readme_replacements),
+            "config.py": _render_template(PROJECT_ROOT / "trainite/config/base.py"),
+            "pyproject.toml": generate_uv_project(name=project_name, version="0.1.0", dependencies=sorted(final_deps)),
+        }
+    )
+
+    return templates
 
 
 def run_interactive_mode() -> None:
@@ -317,6 +363,8 @@ def _update_targets(
             _update_targets(getattr(config, field), old_prefix, new_prefix)
     elif isinstance(config, (SplitConfig, DataWithAutoSplit)):
         _update_targets(config.dataset, old_prefix, new_prefix)
+        if getattr(config, "transform", None) is not None:
+            _update_targets(config.transform, old_prefix, new_prefix)
         _update_targets(config.dataloader, old_prefix, new_prefix)
     elif isinstance(config, DataLoaderConfig) and config.collate_fn:
         _update_targets(config.collate_fn, old_prefix, new_prefix)
@@ -378,11 +426,16 @@ def init_project(
     model_spec = get_model_spec(model)
     dataset_spec = get_dataset_spec(dataset)
     trainer_spec = get_trainer_spec(trainer)
+    preprocessor_spec = (
+        get_preprocessor_spec(dataset_spec.preprocessor_spec_name) if dataset_spec.preprocessor_spec_name else None
+    )
 
     # Instantiate configs from specs
     model_component = model_spec.config_cls()
     data_config = dataset_spec.config_cls()
     trainer_component = trainer_spec.config_cls()
+
+    preprocessor_component = preprocessor_spec.config_cls() if preprocessor_spec else None
 
     # Inject model collator into data config dataloaders
     if model_spec.collate_fn_target:
@@ -400,6 +453,7 @@ def init_project(
         _inject_collate(data_config)
 
     starter_config = ProjectConfig(
+        preprocessor=preprocessor_component,
         model=model_component,
         data=data_config,
         trainer=trainer_component,
@@ -417,6 +471,13 @@ def init_project(
         f"trainite.datasets.{dataset_spec.name}",
         f"datasets.{dataset_spec.name}",
     )
+
+    if preprocessor_spec:
+        _update_targets(
+            starter_config,
+            f"trainite.preprocessors.{preprocessor_spec.name}",
+            f"preprocessors.{preprocessor_spec.name}",
+        )
 
     dump_config(starter_config, resolved_project_dir / "config.yaml")
     for filename, content in templates.items():
