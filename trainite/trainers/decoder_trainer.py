@@ -106,13 +106,14 @@ def build_model(model_config: Any, tokenizer: Any, vocab_size: int, device: str 
 def build_dataset(dataset_config: Any, transform_config: Any, tokenizer: Any) -> Dataset:
     ds = get_target(dataset_config.target)
     dataset = instantiate(dataset_config, **_inject_if_accepted(ds, preprocessor=tokenizer, tokenizer=tokenizer))
+    transform = None
     if transform_config is not None:
         tf = get_target(transform_config.target)
         transform = instantiate(
             transform_config, **_inject_if_accepted(tf, preprocessor=tokenizer, tokenizer=tokenizer)
         )
-        return TransformedDataset(dataset, transform)
-    return dataset
+    # Wraps the dataset with the transform if provided, otherwise returns the dataset as is.
+    return TransformedDataset(dataset, transform)
 
 
 def create_dataloader(
