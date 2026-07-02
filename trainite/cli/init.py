@@ -27,6 +27,7 @@ class ProjectConfig(BaseModel):
     optimizer: OptimizerConfig = Field(default_factory=OptimizerConfig)
     data: DataConfigBase | DataWithAutoSplit
     trainer: BaseModel
+    logger: Literal["wandb", "tensorboard"] = "tensorboard"
     output: OutputConfig
     seed: int = 42
     device: str | None = None
