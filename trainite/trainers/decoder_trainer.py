@@ -484,7 +484,18 @@ class Trainer:
             sources.append(source)
         self.model.eval()
 
-        # Left-pad for generation: reverse → pad_sequence → reverse
+        # Left-pad the prompts (reverse -> pad_sequence -> reverse) so every
+        # sequence in the batch ends at the same position and the newly
+        # generated tokens line up in a single column.
+        #
+        # NOTE: this is safe for the default model because it uses rotary
+        # (relative) positions, where shifting the whole prompt right by the
+        # pad width preserves the distances between real tokens and the padding
+        # is masked out of attention. If you swap in a model with absolute or
+        # sinusoidal position embeddings indexed by slot, left-padding will
+        # offset every real token's position and silently degrade generation --
+        # you would then need to right-pad, or derive position_ids from the
+        # attention mask instead of using the raw slot index.
         batch_input_ids = (
             torch.nn.utils.rnn.pad_sequence(
                 [t.flip(0) for t in prompt_ids_list], batch_first=True, padding_value=pad_token_id
@@ -581,6 +592,9 @@ class Trainer:
                 device=device,
             )
 
+            # Once a sequence has emitted EOS we keep re-emitting it (above) and
+            # mask the appended token out of attention, so a finished sequence
+            # stays frozen while the rest of the batch keeps generating.
             already_ended = generated[:, -2:-1].eq(eos_id)
             next_mask = torch.where(
                 already_ended,
