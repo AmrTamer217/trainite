@@ -15,6 +15,8 @@ UNIVERSAL_VOCAB = string.ascii_letters + string.digits + string.punctuation + " 
 CHARSET_PRESETS = {
     "@universal": UNIVERSAL_VOCAB,
     "@alpha": string.ascii_letters,
+    "@alpha_lowercase": string.ascii_lowercase,
+    "@alpha_uppercase": string.ascii_uppercase,
     "@digits": string.digits,
     "@alphanumeric": string.ascii_letters + string.digits,
 }

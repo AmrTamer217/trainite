@@ -538,9 +538,6 @@ class Trainer:
                 prompt = sources[idx].strip() or "(empty)"
                 target = targets[idx].strip() or "(empty)"
                 pred = decoded_strs[idx].strip() or "(empty)"
-                prompt = prompt.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                target = target.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                pred = pred.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                 lines.append(f"Sample {idx + 1}")
                 lines.append(f"  Prompt:     {prompt}")
                 lines.append(f"  Target:     {target}")
@@ -548,7 +545,10 @@ class Trainer:
                 lines.append("")
             name_map = {"Train": "training", "Val": "validation", "Test": "testing"}
             tb_tag = f"inference/{name_map.get(name, name.lower())}"
-            tb_writer.add_text(tb_tag, "\n".join(lines), global_step=engine.state.epoch)
+            # Fence the block so punctuation in samples renders verbatim instead
+            # of being parsed as TensorBoard markdown (which mangled `*_|#` etc).
+            text = "```\n" + "\n".join(lines) + "\n```"
+            tb_writer.add_text(tb_tag, text, global_step=engine.state.epoch)
 
     @torch.no_grad()
     def generate(
