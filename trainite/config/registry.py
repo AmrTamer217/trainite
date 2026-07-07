@@ -13,8 +13,6 @@ class ComponentSpec(BaseModel):
     config_cls_path: str
     implementation_symbol: str
     readme_template_path: Path | None = None
-    # static replacements to apply to the template when generating.
-    template_replacements: list[tuple[str, str]] = []
     dependencies: list[str] = []
 
     @property
@@ -54,16 +52,11 @@ MODEL_SPECS = {
     "transformer": ModelSpec(
         name="transformer",
         implementation_path=Path("trainite/models/transformer.py"),
-        config_cls_path="trainite.models.transformer.TransformerModelConfig",
+        config_cls_path="trainite.config.models.TransformerModelConfig",
         implementation_symbol="TransformerModel",
         builder_symbol="TransformerModel",
         collate_fn_target="trainite.models.transformer.CausalLMCollateFn",
-        collate_fn_config_cls_path="trainite.models.transformer.CausalLMCollateFnConfig",
-        template_replacements=[
-            ("trainite.shared.utils", "utils"),
-            ("trainite.models", "models"),
-            ("trainite.config.base", "config"),
-        ],
+        collate_fn_config_cls_path="trainite.config.models.CausalLMCollateFnConfig",
         readme_template_path=Path("trainite/templates/components/models/transformer.md"),
     ),
 }
@@ -72,15 +65,10 @@ DATASET_SPECS = {
     "string-reverse": DatasetSpec(
         name="string_reverse",
         implementation_path=Path("trainite/datasets/string_reverse.py"),
-        config_cls_path="trainite.datasets.string_reverse.StringReverseDataConfig",
-        dataset_config_cls_path="trainite.datasets.string_reverse.StringReverseDatasetConfig",
+        config_cls_path="trainite.config.datasets.StringReverseDataConfig",
+        dataset_config_cls_path="trainite.config.datasets.StringReverseDatasetConfig",
         implementation_symbol="StringReverseDataset",
         builder_symbol="StringReverseDataset",
-        template_replacements=[
-            ("trainite.shared.utils", "utils"),
-            ("trainite.datasets", "datasets"),
-            ("trainite.config.base", "config"),
-        ],
         readme_template_path=Path("trainite/templates/components/datasets/string_reverse.md"),
         preprocessor_spec_name="char",
     ),
@@ -90,13 +78,8 @@ TRAINER_SPECS = {
     "decoder-trainer": TrainerSpec(
         name="decoder_trainer",
         implementation_path=Path("trainite/trainers/decoder_trainer.py"),
-        config_cls_path="trainite.trainers.decoder_trainer.TrainerConfig",
+        config_cls_path="trainite.config.trainers.TrainerConfig",
         implementation_symbol="Trainer",
-        template_replacements=[
-            ("trainite.shared.utils", "utils"),
-            ("trainite.config.base", "config"),
-            ("trainite.datasets.transformed", "datasets.transformed"),
-        ],
         readme_template_path=Path("trainite/templates/components/trainers/decoder_trainer.md"),
     ),
 }
@@ -105,11 +88,8 @@ PREPROCESSOR_SPECS = {
     "char": PreProcessorSpec(
         name="char_tokenizer",
         implementation_path=Path("trainite/preprocessors/char_tokenizer.py"),
-        config_cls_path="trainite.preprocessors.char_tokenizer.CharTokenizerConfig",
+        config_cls_path="trainite.config.preprocessors.CharTokenizerConfig",
         implementation_symbol="CharTokenizer",
-        template_replacements=[
-            ("trainite.config.base", "config"),
-        ],
         readme_template_path=Path("trainite/templates/components/preprocessors/char.md"),
     ),
 }
