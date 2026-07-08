@@ -216,7 +216,7 @@ def attach_lr_scheduler(
     optimizer: Any,
     total_iters: int,
     peak_lr: float,
-) -> ParamScheduler:
+) -> None:
     warmup_iters = max(2, int(0.1 * total_iters))
     linear_decay = LinearLR(
         optimizer,
@@ -237,7 +237,7 @@ def attach_early_stopping(
     val_evaluator: Engine,
     trainer_engine: Engine,
     patience: int,
-) -> EarlyStopping | None:
+) -> None:
     early_stopping = EarlyStopping(
         patience=patience,
         score_function=lambda engine: engine.state.metrics["loss"],
