@@ -329,7 +329,7 @@ class Init(BaseModel):
     """
 
     project_dir: tyro.conf.Positional[str] = "my-cool-experiment"
-    model: ModelType = "transformer"
+    model: ModelType = "rope-transformer"
     dataset: DatasetType = "string-reverse"
     trainer: TrainerType = "decoder-trainer"
     output_root: str = "outputs"
