@@ -6,7 +6,7 @@ from trainite.config.base import DatasetConfig, TransformConfig, DataWithAutoSpl
 class PromptCompletionTransformConfig(TransformConfig):
     target: Literal[
         "trainite.datasets.string_reverse.PromptCompletionTransform",
-        "datasets.string_reverse.PromptCompletionTransform",
+        "dataset_impl.string_reverse.PromptCompletionTransform",
     ] = Field(
         default="trainite.datasets.string_reverse.PromptCompletionTransform",
         alias="_target_",
@@ -16,7 +16,8 @@ class PromptCompletionTransformConfig(TransformConfig):
 
 class StringReverseDatasetConfig(DatasetConfig):
     target: Literal[
-        "trainite.datasets.string_reverse.StringReverseDataset", "datasets.string_reverse.StringReverseDataset"
+        "trainite.datasets.string_reverse.StringReverseDataset",
+        "dataset_impl.string_reverse.StringReverseDataset",
     ] = Field(
         default="trainite.datasets.string_reverse.StringReverseDataset",
         alias="_target_",
@@ -59,7 +60,7 @@ class StringReverseDataConfig(DataWithAutoSplit):
 class CountingTransformConfig(TransformConfig):
     target: Literal[
         "trainite.datasets.counting.CountingTransform",
-        "datasets.counting.CountingTransform",
+        "dataset_impl.counting.CountingTransform",
     ] = Field(
         default="trainite.datasets.counting.CountingTransform",
         alias="_target_",
@@ -70,7 +71,7 @@ class CountingTransformConfig(TransformConfig):
 class CountingDatasetConfig(DatasetConfig):
     target: Literal[
         "trainite.datasets.counting.CountingDataset",
-        "datasets.counting.CountingDataset",
+        "dataset_impl.counting.CountingDataset",
     ] = Field(
         default="trainite.datasets.counting.CountingDataset",
         alias="_target_",
@@ -100,6 +101,39 @@ class CountingDataConfig(DataWithAutoSplit):
         default_factory=CountingDatasetConfig
     )
     transform: CountingTransformConfig | None = Field(default_factory=CountingTransformConfig)
+    test_ratio: float = 0.1
+    val_ratio: float = 0.1
+    dataloader: DataLoaderConfig = Field(
+        default_factory=lambda: DataLoaderConfig(
+            batch_size=32,
+            shuffle=True,
+        )
+    )
+
+
+class HuggingFaceTransformConfig(TransformConfig):
+    target: Literal[
+        "trainite.datasets.hugging_face.HuggingFaceTransform",
+        "dataset_impl.hugging_face.HuggingFaceTransform",
+    ] = Field(
+        default="trainite.datasets.hugging_face.HuggingFaceTransform",
+        alias="_target_",
+    )
+    max_length: int = Field(default=128, gt=1)
+    ignore_index: int = -100
+
+
+class HuggingFaceDatasetConfig(DatasetConfig):
+    target: Literal["datasets.load_dataset"] = Field(default="datasets.load_dataset", alias="_target_")
+    path: str = Field(default="namespace/dataset-name", min_length=1)
+    name: str | None = None
+    split: str = Field(default="train", min_length=1)
+    revision: str | None = None
+
+
+class HuggingFaceDataConfig(DataWithAutoSplit):
+    dataset: HuggingFaceDatasetConfig = Field(default_factory=HuggingFaceDatasetConfig)  # type: ignore[assignment]
+    transform: HuggingFaceTransformConfig = Field(default_factory=HuggingFaceTransformConfig)
     test_ratio: float = 0.1
     val_ratio: float = 0.1
     dataloader: DataLoaderConfig = Field(

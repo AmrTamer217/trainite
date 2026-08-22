@@ -56,7 +56,7 @@ def get_target(target_path: str) -> Any:
     return target_symbol
 
 
-def _inject_if_accepted(target_symbol: Any, **candidates: Any) -> dict[str, Any]:
+def _inject_if_accepted(target_symbol: Any, *, allow_var_kwargs: bool = True, **candidates: Any) -> dict[str, Any]:
     """Filter keyword arguments to only those accepted by the target's signature.
 
     When building datasets or transforms, the caller may want to pass ``tokenizer``
@@ -65,11 +65,12 @@ def _inject_if_accepted(target_symbol: Any, **candidates: Any) -> dict[str, Any]
     any candidates it does not accept, so components remain decoupled from the
     calling convention.
 
-    If the target accepts ``**kwargs``, all candidates are passed through as-is.
+    If the target accepts ``**kwargs`` and ``allow_var_kwargs`` is true, all
+    candidates are passed through as-is.
     """
     try:
         sig = inspect.signature(target_symbol)
-        if any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()):
+        if allow_var_kwargs and any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()):
             return candidates
         return {k: v for k, v in candidates.items() if k in sig.parameters}
     except Exception:
@@ -149,7 +150,15 @@ def build_model(model_config: Any, device: str | torch.device, **kwargs) -> nn.M
 
 def build_dataset(dataset_config: Any, transform_config: Any, tokenizer: Any) -> Dataset:
     ds = get_target(dataset_config.target)
-    dataset = instantiate(dataset_config, **_inject_if_accepted(ds, preprocessor=tokenizer, tokenizer=tokenizer))
+    dataset = instantiate(
+        dataset_config,
+        **_inject_if_accepted(
+            ds,
+            allow_var_kwargs=False,
+            preprocessor=tokenizer,
+            tokenizer=tokenizer,
+        ),
+    )
     transform = None
     if transform_config is not None:
         tf = get_target(transform_config.target)

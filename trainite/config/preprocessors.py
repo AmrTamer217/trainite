@@ -8,3 +8,10 @@ class CharTokenizerConfig(PreprocessorConfig):
         alias="_target_",
     )
     charset: str = "@universal"
+
+
+class GPT2TokenizerConfig(PreprocessorConfig):
+    target: str = Field(
+        default="trainite.preprocessors.gpt2_tokenizer.load_gpt2_tokenizer",
+        alias="_target_",
+    )
