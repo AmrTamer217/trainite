@@ -205,6 +205,8 @@ def _recreation_command(config: "Init", project_name: str) -> str:
         cmd_parts.append(f"--output-root {config.output_root}")
     if config.run_name:
         cmd_parts.append(f"--run-name {config.run_name}")
+    if config.sky:
+        cmd_parts.append("--sky")
     return " ".join(cmd_parts)
 
 
@@ -215,6 +217,7 @@ def _build_templates(
     preprocessor_spec: ComponentSpec | None,
     project_name: str,
     recreation_command: str = "",
+    sky: bool = False,
 ) -> tuple[dict[str, str], list[tuple[str, str]]]:
     specs = [*model_specs, dataset_spec, trainer_spec, preprocessor_spec]
     spec_deps = set()
@@ -231,6 +234,9 @@ def _build_templates(
             raise ValueError(f"Dependency '{dep}' required by the selected templates is not listed in pyproject.toml")
         val = required_deps[dep] if dep in required_deps else other_deps[dep]
         final_deps.add(val)
+
+    if sky:
+        final_deps.add(other_deps.get("skypilot", "skypilot"))
 
     # Generated file -> source file it is copied from
     sources: dict[str, Path] = {}
@@ -252,6 +258,10 @@ def _build_templates(
 
     rewrites = _module_rewrites(sources)
     templates = {dest: _render_template(PROJECT_ROOT / src, rewrites) for dest, src in sources.items()}
+
+    if sky:
+        sky_template_path = PROJECT_ROOT / "trainite/templates/integrations/sky.yaml"
+        templates["sky.yaml"] = _render_template(sky_template_path, [("{{project_name}}", project_name)])
 
     def _docs(spec: Any) -> str:
         if spec is not None and spec.readme_template_path:
@@ -322,6 +332,12 @@ def run_interactive_mode() -> None:
         f"{models[0]}__{dataset}".replace("-", "_"),
         "Run name for generated config (used in output paths and logging) \n",
     )
+    sky = questionary.confirm(
+        "Enable SkyPilot cloud training (generate sky.yaml)?",
+        default=False,
+    ).ask()
+    if sky is None:
+        raise SystemExit(0)
 
     config = Init(
         project_dir=project_dir,
@@ -330,6 +346,7 @@ def run_interactive_mode() -> None:
         trainer=trainer,
         output_root=output_root,
         run_name=run_name,
+        sky=sky,
         force=False,
     )
 
@@ -364,6 +381,7 @@ class Init(BaseModel):
         trainer: Starter trainer template to use.
         output_root: Output root for generated config.
         run_name: Run name for generated config.
+        sky: Enable SkyPilot cloud training template (generates sky.yaml).
         force: Overwrite existing starter files.
     """
 
@@ -373,6 +391,7 @@ class Init(BaseModel):
     trainer: TrainerType = "decoder-trainer"
     output_root: str = "outputs"
     run_name: str = ""
+    sky: bool = False
     force: bool = False
 
     @field_validator("model", mode="before")
@@ -421,7 +440,13 @@ def init_project(config: Init) -> None:
 
     # Build templates for the starter project
     templates, rewrites = _build_templates(
-        model_specs, dataset_spec, trainer_spec, preprocessor_spec, resolved_project_dir.name, recreation_cmd
+        model_specs,
+        dataset_spec,
+        trainer_spec,
+        preprocessor_spec,
+        resolved_project_dir.name,
+        recreation_cmd,
+        sky=config.sky,
     )
 
     # Instantiate configs from specs (primary model is used for default config.yaml)

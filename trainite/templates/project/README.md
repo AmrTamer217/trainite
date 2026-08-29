@@ -84,6 +84,32 @@ If you prefer standard Python tools, you can create a virtual environment and us
    tensorboard --logdir outputs
    ```
 
+### Option C: Cloud Training (SkyPilot)
+
+To launch this experiment on cloud GPUs (AWS, GCP, Azure, Lambda, etc.) using [SkyPilot](https://docs.skypilot.ai/):
+
+1. **Initialize SkyPilot configuration** (if not already generated):
+   ```bash
+   trainite add:sky
+   ```
+   This generates `sky.yaml` and adds `skypilot` to `pyproject.toml`.
+
+2. **Update dependencies & verify cloud**:
+   ```bash
+   pip install -e .    # or: uv sync
+   sky check
+   ```
+
+3. **Launch on Cloud**:
+   ```bash
+   sky launch sky.yaml
+   ```
+
+> [!TIP]
+> Trainite installs the base `skypilot` package. Running `sky check` will detect your active cloud credentials and provide the exact one-line command to install your specific cloud provider's driver if needed (e.g. `pip install "skypilot[aws]"` or `pip install "skypilot[kubernetes]"`).
+>
+> You can also run jobs on your own on-premises servers or custom clusters via SSH by following SkyPilot's [Existing Machines guide](https://docs.skypilot.co/en/latest/reservations/existing-machines.html).
+
 ## Experiment Logging and Checkpoints
 
 The default `logger: tensorboard` stores metrics and checkpoints locally. To use ClearML instead:

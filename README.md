@@ -50,6 +50,7 @@ optimizer:
   - [Initialize a Project](#initialize-a-project)
   - [Run Training](#run-training)
   - [Monitor & Iterate](#monitor--iterate)
+  - [Cloud Training with SkyPilot](#cloud-training-with-skypilot)
 - [Built-in Components](#built-in-components)
 - [Configuration](#configuration)
 - [Customizing Your Project](#customizing-your-project)
@@ -134,6 +135,7 @@ Interactive prompt preview:
 ? Trainer: decoder-trainer
 ? Output directory: outputs
 ? Run name: rope-transformer__string-reverse
+? Enable SkyPilot cloud training (generate sky.yaml)? No
 
  Generated config.yaml
  Generated models/rope_transformer.py
@@ -180,6 +182,38 @@ outputs/
         ├── last_checkpoint_*.pt
         └── tensorboard/        # TensorBoard event files
 ```
+
+### Cloud Training with SkyPilot
+
+You can enable [SkyPilot](https://docs.skypilot.ai/) cloud training in two ways:
+
+1. **During project creation**:
+   ```bash
+   trainite init my-experiment --sky
+   ```
+2. **In an existing project**:
+   ```bash
+   cd my-experiment
+   trainite add:sky
+   ```
+
+This creates `sky.yaml` in your project and adds `skypilot` to `pyproject.toml`. To launch on any cloud (AWS, GCP, Azure, Lambda, Kubernetes, etc.):
+
+```bash
+# 1. Update environment
+pip install -e .    # or: uv sync
+
+# 2. Verify cloud credentials
+sky check
+
+# 3. Launch training on cloud GPU
+sky launch sky.yaml
+```
+
+> [!TIP]
+> Trainite installs the base `skypilot` package. Running `sky check` will detect your active cloud credentials and provide the exact one-line command to install your specific cloud provider's driver if needed (e.g. `pip install "skypilot[aws]"` or `pip install "skypilot[kubernetes]"`).
+>
+> You can also run jobs on your own on-premises servers or custom clusters via SSH by following SkyPilot's [Existing Machines guide](https://docs.skypilot.co/en/latest/reservations/existing-machines.html).
 
 ## Built-in Components
 

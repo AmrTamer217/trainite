@@ -1,4 +1,4 @@
-from typing import Self, Literal
+from typing import Literal, Self
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
