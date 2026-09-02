@@ -267,3 +267,50 @@ def test_init_without_sky_flag_default(tmp_path):
     assert not (project_dir / "sky.yaml").exists()
     pyproject_content = (project_dir / "pyproject.toml").read_text()
     assert "skypilot" not in pyproject_content
+
+
+def test_interactive_init_ctrl_c_on_model_selection(capsys):
+    """Test that cancelling model selection via Ctrl+C exits cleanly with code 0
+
+    and does not print the misleading validation error.
+    """
+    from unittest import mock
+    from trainite.cli.main import main
+
+    with (
+        mock.patch("trainite.cli.init._prompt_text", return_value="my-cool-experiment"),
+        mock.patch("trainite.cli.init.questionary.checkbox") as mock_checkbox,
+    ):
+        # questionary returns None on Ctrl+C / SIGINT
+        mock_checkbox.return_value.ask.return_value = None
+
+        with pytest.raises(SystemExit) as exc_info:
+            main(argv=["init"])
+
+        assert exc_info.value.code == 0
+        mock_checkbox.return_value.ask.assert_called_once()
+
+    output = capsys.readouterr()
+    combined_output = output.out + output.err
+    assert "At least one model must be selected." not in combined_output
+
+
+def test_interactive_init_empty_model_selection_shows_error():
+    """Test that submitting an empty model selection (pressing Enter with nothing checked)
+
+    exits with the validation error message.
+    """
+    from unittest import mock
+    from trainite.cli.main import main
+
+    with (
+        mock.patch("trainite.cli.init._prompt_text", return_value="my-cool-experiment"),
+        mock.patch("trainite.cli.init.questionary.checkbox") as mock_checkbox,
+    ):
+        # questionary returns [] when user presses Enter without checking any choice
+        mock_checkbox.return_value.ask.return_value = []
+
+        with pytest.raises(SystemExit) as exc_info:
+            main(argv=["init"])
+
+        assert exc_info.value.code == "At least one model must be selected."
