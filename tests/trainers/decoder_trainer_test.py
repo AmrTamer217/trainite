@@ -74,21 +74,6 @@ class SimpleDataset(torch.utils.data.Dataset):
         }
 
 
-class SimpleDatasetNoVocab(torch.utils.data.Dataset):
-    def __init__(self, size=16, seq_len=4, **kwargs):
-        self.size = size
-        self.seq_len = seq_len
-
-    def __len__(self):
-        return self.size
-
-    def __getitem__(self, index):
-        return {
-            "input_ids": torch.randint(0, 10, (self.seq_len,)),
-            "labels": torch.randint(0, 10, (self.seq_len,)),
-        }
-
-
 class EmptyDataset(torch.utils.data.Dataset):
     def __init__(self, **kwargs):
         pass
