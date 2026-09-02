@@ -299,40 +299,6 @@ def test_decoder_trainer_run_with_val(project_config, temp_run_dir):
     assert trainer.best_checkpoint is not None
 
 
-@pytest.mark.skip(reason="Skipping this test because validation is required.")
-def test_decoder_trainer_run_without_val(project_config, temp_run_dir):
-    object.__setattr__(
-        project_config,
-        "data",
-        DataConfigBase.model_construct(
-            train=project_config.data.train,
-            val=None,
-            test=None,
-        ),
-    )
-    trainer = create_trainer_from_config(project_config)
-    trainer.run()
-
-    # Check if run directory was created
-    run_dirs = list((temp_run_dir / "test_run").iterdir())
-    assert len(run_dirs) == 1
-    run_dir = run_dirs[0]
-
-    assert (run_dir / "config.yaml").exists()
-    assert (run_dir / "output.log").exists()
-    assert (run_dir / "tensorboard").exists()
-
-    # Check for checkpoints
-    # ModelCheckpoint n_saved=1, so we expect at least one
-    checkpoints = list(run_dir.glob("*.pt"))
-    assert len(checkpoints) >= 1
-
-    # Early stopping and best checkpoint should NOT be in handlers / attached
-    event_handlers = trainer.val_evaluator._event_handlers.get(Events.COMPLETED, [])
-    assert not any(isinstance(h[0], EarlyStopping) for h in event_handlers)
-    assert trainer.best_checkpoint is not None
-
-
 def test_decoder_trainer_test_no_loader(project_config):
     # Ensure test split is None (default in fixture is None)
     project_config.data.test = None
@@ -416,40 +382,29 @@ def test_decoder_trainer_test_method(project_config, temp_run_dir):
     assert "token_accuracy" in trainer.test_evaluator.state.metrics
 
 
-@pytest.mark.skip(reason="Skipping this test because validation is required ")
-def test_decoder_trainer_test_without_val(project_config, temp_run_dir):
-    # Remove validation split
+def test_decoder_trainer_test_loads_best_checkpoint(project_config, temp_run_dir):
     # Add test split
-    object.__setattr__(
-        project_config,
-        "data",
-        DataConfigBase.model_construct(
-            train=project_config.data.train,
-            val=None,
-            test=SplitConfig(
-                dataset=cc(
-                    "tests.trainers.decoder_trainer_test.SimpleDataset",
-                    size=4,
-                    seq_len=4,
-                    vocab_size=10,
-                ),
-                dataloader=DataLoaderConfig(batch_size=4),
-            ),
+    project_config.data.test = SplitConfig(
+        dataset=cc(
+            "tests.trainers.decoder_trainer_test.SimpleDataset",
+            size=4,
+            seq_len=4,
+            vocab_size=10,
         ),
+        dataloader=DataLoaderConfig(batch_size=4),
     )
 
     trainer = create_trainer_from_config(project_config)
     trainer.run()
 
     assert trainer.best_checkpoint is not None
-    assert trainer.last_checkpoint is not None
 
     with mock.patch("torch.load", side_effect=torch.load) as mock_load:
         trainer.test()
 
-    # Verify that it loaded the last checkpoint
-    last_checkpoint_path = trainer.last_checkpoint.last_checkpoint
-    mock_load.assert_any_call(last_checkpoint_path, map_location=trainer.device, weights_only=True)
+    # Verify that it loaded the best checkpoint
+    best_checkpoint_path = trainer.best_checkpoint.last_checkpoint
+    mock_load.assert_any_call(best_checkpoint_path, map_location=trainer.device, weights_only=True)
 
 
 def test_decoder_trainer_dataloader_collate_fn(project_config):
